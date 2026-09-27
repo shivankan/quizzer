@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quizzer — Shared display</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+<style>
+  body { display:flex; align-items:center; justify-content:center; }
+  .stage-wrap { width:min(1100px,94vw); }
+  .big-timer { font-size:72px; }
+</style>
+</head>
+<body>
+<div class="stage-wrap">
+  <!-- connect -->
+  <section id="view-connect">
+    <div class="card narrow center" style="max-width:460px;margin:0 auto;">
+      <div class="brand center" style="justify-content:center; margin-bottom:14px;"><span class="dot"></span> Quizzer</div>
+      <h2>Shared display</h2>
+      <p class="muted">Enter the room code to cast this screen to a TV or projector.</p>
+      <div class="row" style="margin-top:10px;">
+        <input id="code" placeholder="ROOM CODE" maxlength="5" style="text-transform:uppercase; letter-spacing:.15em; font-weight:700;">
+        <button class="btn primary" id="connectBtn">Show →</button>
+      </div>
+      <div class="err" id="err"></div>
+    </div>
+  </section>
+
+  <!-- stage -->
+  <section id="view-stage" class="hide">
+    <div class="card">
+      <div class="row spread" style="margin-bottom:10px;">
+        <div class="brand"><span class="dot"></span> <span id="title"></span></div>
+        <div class="row">
+          <span class="pill" id="phasePill">Lobby</span>
+          <span class="muted tiny" id="progress"></span>
+        </div>
+      </div>
+      <div id="stage"></div>
+    </div>
+  </section>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/display.js"></script>
+</body>
+</html>

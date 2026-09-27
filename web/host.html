@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quizzer — Host console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="wrap wide">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> <span class="name">QUIZZER</span></div>
+    <div class="row">
+      <span class="muted tiny" id="whoami"></span>
+      <button class="btn ghost sm" id="logout">Sign out</button>
+    </div>
+  </div>
+
+  <!-- ============ DASHBOARD ============ -->
+  <section id="view-dash">
+    <div class="card">
+      <div class="row spread">
+        <h2 style="margin:0;">Your quizzes</h2>
+        <div class="row">
+          <input id="newTitle" placeholder="New quiz title…" style="width:220px;">
+          <button class="btn primary" id="createQuiz">+ Create</button>
+        </div>
+      </div>
+      <div id="quizList" style="margin-top:16px;"></div>
+    </div>
+  </section>
+
+  <!-- ============ EDITOR ============ -->
+  <section id="view-editor" class="hide">
+    <div class="card">
+      <div class="row spread">
+        <button class="btn ghost sm" id="backToDash">← Back</button>
+        <div class="row">
+          <span class="ok" id="saveState"></span>
+          <button class="btn" id="saveQuiz">Save</button>
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <label>Quiz title</label>
+        <input id="editTitle">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row spread">
+        <h2 style="margin:0;">Questions</h2>
+        <div class="row">
+          <select id="addType" style="width:auto;">
+            <option value="buzzer">Buzzer</option>
+            <option value="freetext">Free-text</option>
+            <option value="select">Select (multiple choice)</option>
+          </select>
+          <button class="btn primary" id="addQuestion">+ Add question</button>
+        </div>
+      </div>
+      <div id="questions" style="margin-top:16px;"></div>
+      <p class="muted tiny" id="noQuestions">No questions yet — add one above.</p>
+    </div>
+  </section>
+
+  <!-- ============ LIVE HOST CONSOLE ============ -->
+  <section id="view-live" class="hide">
+    <div class="grid cols2" style="grid-template-columns: 1.4fr 1fr; align-items:start;">
+      <!-- left: stage + controls -->
+      <div class="stack">
+        <div class="card">
+          <div class="row spread">
+            <div class="row">
+              <span class="pill" id="livePhase">Lobby</span>
+              <span class="muted tiny" id="liveProgress"></span>
+            </div>
+            <div class="row">
+              <span class="muted tiny" id="connState"></span>
+              <button class="btn sm" id="presentBtn">🖥 Present</button>
+              <button class="btn ghost sm" id="endRoom">End</button>
+            </div>
+          </div>
+
+          <div id="liveStage" style="margin-top:16px;"></div>
+        </div>
+
+        <div class="card" id="controlCard">
+          <h3>Host controls</h3>
+          <div id="controls" class="row wrap2"></div>
+        </div>
+      </div>
+
+      <!-- right: room info + teams + buzz/review panels -->
+      <div class="stack">
+        <div class="card center">
+          <div class="muted tiny">Room code — players join at <b id="joinUrl"></b></div>
+          <div class="code-display" id="roomCode">—</div>
+          <div class="muted tiny">Quiz: <span id="liveTitle"></span></div>
+        </div>
+        <div class="card">
+          <div class="row spread"><h3 style="margin:0;">Teams</h3><span class="muted tiny" id="teamCount"></span></div>
+          <div class="chips" id="teamChips" style="margin-top:12px;"></div>
+        </div>
+        <div class="card" id="sidePanel"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/host.js"></script>
+</body>
+</html>

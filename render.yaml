@@ -1,0 +1,13 @@
+# Render blueprint — deploys Quizzer as a free web service.
+# In the Render dashboard: New → Blueprint → pick this repo → Apply.
+services:
+  - type: web
+    name: quizzer
+    runtime: python
+    plan: free
+    buildCommand: "echo 'no build needed - stdlib only'"
+    startCommand: "python3 server.py"
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"

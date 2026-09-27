@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Quizzer — Play</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> <span class="name">QUIZZER</span></div>
+    <span class="muted tiny" id="connState"></span>
+  </div>
+
+  <!-- JOIN -->
+  <section id="view-join">
+    <div class="card">
+      <h2>Join a game</h2>
+      <div class="stack">
+        <div>
+          <label>Room code</label>
+          <input id="code" placeholder="ROOM CODE" maxlength="5" style="text-transform:uppercase; letter-spacing:.15em; font-weight:700;">
+        </div>
+        <div>
+          <label>Team name</label>
+          <input id="teamName" placeholder="The Quizzy Rascals" maxlength="40">
+        </div>
+        <div>
+          <label>Team photo (optional)</label>
+          <div class="row">
+            <input id="photo" type="file" accept="image/*" capture="environment" style="padding:8px;">
+            <img id="photoPreview" class="avatar" style="width:48px;height:48px;display:none;">
+          </div>
+        </div>
+        <div class="err" id="joinErr"></div>
+        <button class="btn primary block lg" id="joinBtn">Join game</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- WAITING -->
+  <section id="view-wait" class="hide">
+    <div class="card center" style="padding:40px 20px;">
+      <div class="avatar" id="waitAvatar" style="width:64px;height:64px;margin:0 auto 14px;font-size:22px;"></div>
+      <h1 id="waitName"></h1>
+      <p class="muted">You're in! Waiting for the host to start…</p>
+      <div class="banner" style="margin-top:16px;">Room <b id="waitCode"></b></div>
+    </div>
+  </section>
+
+  <!-- PLAY -->
+  <section id="view-play" class="hide">
+    <div class="card">
+      <div class="row spread" style="margin-bottom:6px;">
+        <span class="pill" id="pType"></span>
+        <div class="row">
+          <span class="muted tiny" id="pProgress"></span>
+          <button class="btn ghost sm" id="showScores">Scores</button>
+        </div>
+      </div>
+      <div id="playStage"></div>
+    </div>
+  </section>
+
+  <!-- SCOREBOARD OVERLAY -->
+  <section id="view-scores" class="hide">
+    <div class="card">
+      <div class="row spread"><h2 style="margin:0;">Scoreboard</h2><button class="btn ghost sm" id="closeScores">Close</button></div>
+      <div id="scoreList" style="margin-top:14px;"></div>
+    </div>
+  </section>
+</div>
+
+<script src="/js/common.js"></script>
+<script src="/js/play.js"></script>
+</body>
+</html>

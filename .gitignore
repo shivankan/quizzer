@@ -1,0 +1,7 @@
+quizzer.db
+quizzer.db-wal
+quizzer.db-shm
+__pycache__/
+*.pyc
+.claude/
+.DS_Store

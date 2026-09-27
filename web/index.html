@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quizzer — live quiz platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> <span class="name">QUIZZER</span></div>
+  </div>
+
+  <div class="card center" style="margin-bottom:18px;">
+    <h1>Run a live quiz</h1>
+    <p class="muted">Buzzer rounds, free-text, and multiple-choice — scored live, from one screen.</p>
+  </div>
+
+  <!-- Host auth -->
+  <div class="card" id="authCard">
+    <div class="row spread" style="margin-bottom:14px;">
+      <h2 style="margin:0;">Host sign in</h2>
+      <button class="btn ghost sm" id="toggleMode">Need an account?</button>
+    </div>
+    <div class="stack">
+      <div>
+        <label>Email</label>
+        <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+      </div>
+      <div>
+        <label>Password <span class="tiny muted" id="pwHint"></span></label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <div class="err" id="authErr"></div>
+      <button class="btn primary block" id="authBtn">Sign in</button>
+    </div>
+  </div>
+
+  <!-- Join a game -->
+  <div class="card" style="margin-top:16px;">
+    <h2>Join a game</h2>
+    <p class="muted tiny">Playing in someone's quiz? Enter the room code — no account needed.</p>
+    <div class="row">
+      <input id="joinCode" placeholder="ROOM CODE" style="text-transform:uppercase; letter-spacing:.15em; font-weight:700;" maxlength="5">
+      <button class="btn" id="joinBtn">Join →</button>
+    </div>
+    <p class="tiny muted" style="margin-top:10px;">Showing the game on a TV? Open the <a href="/display.html">shared display</a>.</p>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+  // already logged in? go to dashboard
+  if (Auth.token) location.href = "/host.html";
+
+  let mode = "login";
+  const $email = $("#email"), $pw = $("#password"), $err = $("#authErr");
+  const $btn = $("#authBtn"), $toggle = $("#toggleMode"), $hint = $("#pwHint");
+
+  function render() {
+    if (mode === "login") {
+      $("#authCard h2").textContent = "Host sign in";
+      $btn.textContent = "Sign in";
+      $toggle.textContent = "Need an account?";
+      $pw.autocomplete = "current-password";
+      $hint.textContent = "";
+    } else {
+      $("#authCard h2").textContent = "Create host account";
+      $btn.textContent = "Create account";
+      $toggle.textContent = "Have an account?";
+      $pw.autocomplete = "new-password";
+      $hint.textContent = "(6+ characters)";
+    }
+    $err.textContent = "";
+  }
+  $toggle.onclick = () => { mode = mode === "login" ? "signup" : "login"; render(); };
+
+  async function submit() {
+    $err.textContent = "";
+    const email = $email.value.trim(), password = $pw.value;
+    if (!email || !password) { $err.textContent = "Enter your email and password."; return; }
+    $btn.disabled = true;
+    try {
+      const path = mode === "login" ? "/api/login" : "/api/signup";
+      const data = await api(path, "POST", { email, password });
+      Auth.set(data.token, data.email);
+      location.href = "/host.html";
+    } catch (e) {
+      $err.textContent = e.message;
+      $btn.disabled = false;
+    }
+  }
+  $btn.onclick = submit;
+  $pw.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+
+  function join() {
+    const code = $("#joinCode").value.trim().toUpperCase();
+    if (code) location.href = "/play.html?code=" + encodeURIComponent(code);
+  }
+  $("#joinBtn").onclick = join;
+  $("#joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+
+  render();
+</script>
+</body>
+</html>
