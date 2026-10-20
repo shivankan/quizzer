@@ -285,7 +285,7 @@ function startLive(code) {
     .on("timer", (m) => H.timer.update(m))
     .on("buzz", (m) => { H.buzz = m; if (H.phase === "active") { renderSidePanel(); renderPresent(); } })
     .on("locks", (m) => { H.locks = m; if (H.phase === "active") { renderSidePanel(); renderPresent(); } })
-    .on("presence_alert", (m) => { presenceAlert(m.name, m.state); flashTeamChip(m.id); })
+    .on("presence_alert", (m) => { presenceAlert(m.name, m.state, m.id); flashTeamChip(m.id); })
     .on("review", (m) => { H.review = m; H.phase = "review"; renderLive(); })
     .on("scoreboard", (m) => { H.phase = "scoreboard"; H.scoreboard = m.rows; renderLive(); })
     .on("ended", (m) => { H.phase = "ended"; H.scoreboard = m.rows; renderLive(); })
@@ -363,6 +363,9 @@ function renderPresent() {
         el("div", { class: H.locks.all_in ? "banner good" : "banner", style: "font-size:20px; display:inline-block;" },
           H.locks.all_in ? `✓ All ${H.locks.total} teams locked in` : `🔒 ${H.locks.count} of ${H.locks.total} locked in`)));
     }
+    const away = (H.teams || []).filter((t) => !t.connected || t.away).length;
+    if (away) s.append(el("div", { class: "center", style: "margin-top:12px;" },
+      el("span", { class: "pill amber" }, `👀 ${away} team${away === 1 ? "" : "s"} away from the app`)));
     if (H.phase === "active" && H.q.type === "buzzer") {
       const b = H.buzz || { queue: [], top: null };
       if (b.top) s.append(el("div", { class: "center pop", style: "margin-top:14px; font:900 clamp(28px,5vw,64px) 'Unbounded'; color:var(--green); filter:drop-shadow(0 0 20px rgba(46,229,140,.5));" }, "🔔 " + b.top.name + " — answer!"));
@@ -394,7 +397,14 @@ function renderPresent() {
 }
 
 function renderTeams() {
-  $("#teamCount").textContent = H.teams.length + " team" + (H.teams.length === 1 ? "" : "s");
+  const gone = H.teams.filter((t) => !t.connected || t.away).length;
+  const label = H.teams.length + " team" + (H.teams.length === 1 ? "" : "s");
+  const el2 = $("#teamCount");
+  el2.innerHTML = "";
+  el2.append(document.createTextNode(label));
+  // persists after the flash banner fades, so a quiet exodus stays visible
+  if (gone) el2.append(el("span", { class: "pill amber", style: "margin-left:8px;" },
+    gone + " away"));
   const root = $("#teamChips");
   root.innerHTML = "";
   if (!H.teams.length) { root.append(el("span", { class: "muted tiny" }, "Waiting for teams to join…")); return; }

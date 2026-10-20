@@ -205,19 +205,50 @@ const OFFLINE_QUIPS = [
   "vanished 💨",
 ];
 
-function presenceAlert(name, state) {
+// Alerts are coalesced: when several teams drop at once (a flaky room, everyone
+// checking their phone), one combined banner is far more readable than a stack
+// of near-identical ones. Keyed by team id so a flapping team counts once.
+const GROUP_QUIPS = ["are suspiciously busy elsewhere 👀", "all wandered off at once 🤨",
+                     "left the app together — coincidence? 🕵️"];
+let _pending = new Map();
+let _flushTimer = null;
+
+function presenceAlert(name, state, id) {
+  _pending.set(id || name, { name, state });
+  clearTimeout(_flushTimer);
+  _flushTimer = setTimeout(flushPresenceAlerts, 900);
+}
+
+function flushPresenceAlerts() {
+  const items = Array.from(_pending.values());
+  _pending = new Map();
+  if (!items.length) return;
+
   let stack = document.querySelector(".alert-stack");
   if (!stack) { stack = el("div", { class: "alert-stack" }); document.body.append(stack); }
-  const pool = state === "offline" ? OFFLINE_QUIPS : AWAY_QUIPS;
-  const quip = pool[Math.floor(Math.random() * pool.length)];
-  const node = el("div", { class: "alert-flash" + (state === "offline" ? " offline" : "") },
-    el("span", { class: "eyes" }, state === "offline" ? "📡" : "👀"),
-    el("span", { class: "grow" }, name + " " + quip));
+  // never let banners pile past 3 — drop the oldest
+  while (stack.children.length >= 3) stack.firstChild.remove();
+
+  const anyOffline = items.some((i) => i.state === "offline");
+  let text, icon;
+  if (items.length === 1) {
+    const pool = items[0].state === "offline" ? OFFLINE_QUIPS : AWAY_QUIPS;
+    text = items[0].name + " " + pool[Math.floor(Math.random() * pool.length)];
+    icon = items[0].state === "offline" ? "📡" : "👀";
+  } else {
+    const names = items.map((i) => i.name);
+    const shown = names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3} more` : "");
+    text = `${names.length} teams ${GROUP_QUIPS[Math.floor(Math.random() * GROUP_QUIPS.length)]} — ${shown}`;
+    icon = anyOffline ? "📡" : "👀";
+  }
+
+  const node = el("div", { class: "alert-flash" + (anyOffline ? " offline" : "") },
+    el("span", { class: "eyes" }, icon), el("span", { class: "grow" }, text));
   stack.append(node);
   setTimeout(() => {
     node.classList.add("out");
-    setTimeout(() => { node.remove(); if (!stack.children.length) stack.remove(); }, 400);
-  }, 5000);
+    setTimeout(() => { node.remove(); if (stack && !stack.children.length) stack.remove(); }, 400);
+  }, items.length > 1 ? 7000 : 5000);
 }
 
 function orbs() {

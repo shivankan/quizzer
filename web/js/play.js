@@ -266,13 +266,13 @@ function renderLockBar() {
   if (P.locked) {
     bar.append(el("div", { class: "banner good", style: "display:flex; align-items:center; gap:10px;" },
       el("span", { class: "grow" }, "✓ Locked in — your answer is final"),
-      el("button", { class: "btn sm", onclick: () => P.ws.send({ type: "lock_in", locked: false }) }, "Unlock & edit")));
+      el("button", { class: "btn sm", onclick: () => P.ws.send({ type: "lock_in", locked: false }) }, "Edit")));
   } else {
-    bar.append(el("button", { class: "btn primary block lg", onclick: () => P.ws.send({ type: "lock_in", locked: true }) }, "🔒 Lock in answer"));
+    bar.append(el("button", { class: "btn primary block lg", onclick: () => P.ws.send({ type: "lock_in", locked: true }) }, "🔒 Lock in"));
   }
   if (info.total) {
     bar.append(el("p", { class: "muted tiny center", style: "margin-top:8px;" },
-      `${info.count} of ${info.total} teams locked in` + (P.locked ? " · you can still unlock until time runs out" : "")));
+      `${info.count} of ${info.total} teams locked in` + (P.locked ? " · you can still edit until time runs out" : "")));
   }
   setInputsDisabled(P.locked);
 }

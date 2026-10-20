@@ -30,7 +30,7 @@ async function connect() {
     .on("timer", (m) => D.timer.update(m))
     .on("buzz", (m) => { D.buzz = m; if (D.phase === "active") render(); })
     .on("locks", (m) => { D.locks = m; if (D.phase === "active") render(); })
-    .on("presence_alert", (m) => presenceAlert(m.name, m.state))
+    .on("presence_alert", (m) => presenceAlert(m.name, m.state, m.id))
     .on("reveal", (m) => { D.reveal = m; })
     .on("scoreboard", (m) => { D.phase = "scoreboard"; D.scores = m.rows; render(); })
     .on("ended", (m) => { D.phase = "ended"; D.scores = m.rows; render(); })
