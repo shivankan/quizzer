@@ -59,7 +59,10 @@ CREATE TABLE IF NOT EXISTS questions (
     position    INTEGER NOT NULL,
     type        TEXT NOT NULL,            -- buzzer | freetext | select
     text        TEXT NOT NULL DEFAULT '',
-    image_url   TEXT NOT NULL DEFAULT '',
+    image_url   TEXT NOT NULL DEFAULT '',   -- legacy: superseded by media_url
+    media_url   TEXT NOT NULL DEFAULT '',
+    media_type  TEXT NOT NULL DEFAULT '',   -- image | audio | video
+    media_scale INTEGER NOT NULL DEFAULT 100,
     points      INTEGER NOT NULL DEFAULT 10,
     timer_seconds   INTEGER NOT NULL DEFAULT 30,
     time_increment  INTEGER NOT NULL DEFAULT 10,
@@ -73,7 +76,27 @@ CREATE TABLE IF NOT EXISTS questions (
 def init():
     c = _conn()
     c.executescript(SCHEMA)
+    _migrate(c)
     c.commit()
+
+
+def _migrate(c):
+    """Add columns introduced after the first release, and carry old data over.
+    SQLite has no ADD COLUMN IF NOT EXISTS, so inspect the table first."""
+    cols = {r["name"] for r in c.execute("PRAGMA table_info(questions)").fetchall()}
+    added = []
+    for name, decl in (("media_url", "TEXT NOT NULL DEFAULT ''"),
+                       ("media_type", "TEXT NOT NULL DEFAULT ''"),
+                       ("media_scale", "INTEGER NOT NULL DEFAULT 100")):
+        if name not in cols:
+            c.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
+            added.append(name)
+    if "media_url" in added:
+        # existing image_url values become image media, so old quizzes keep working
+        c.execute("UPDATE questions SET media_url=image_url, media_type='image' "
+                  "WHERE image_url != '' AND media_url = ''")
+    if added:
+        print(f"  [db] migrated questions table: added {', '.join(added)}", flush=True)
 
 
 # ---------- auth ----------
@@ -252,14 +275,24 @@ def save_quiz(host_id, quiz_id, title, questions):
         qtype = q.get("type", "buzzer")
         if qtype not in ("buzzer", "freetext", "select"):
             qtype = "buzzer"
+        mtype = q.get("media_type") or ""
+        if mtype not in ("image", "audio", "video"):
+            mtype = ""
+        try:
+            scale = int(q.get("media_scale") or 100)
+        except (TypeError, ValueError):
+            scale = 100
+        scale = max(20, min(100, scale))
         c.execute(
-            "INSERT INTO questions(quiz_id, position, type, text, image_url, points, "
-            "timer_seconds, time_increment, multi_select, options_json, correct_json) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO questions(quiz_id, position, type, text, image_url, media_url, "
+            "media_type, media_scale, points, timer_seconds, time_increment, multi_select, "
+            "options_json, correct_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 quiz_id, pos, qtype,
                 (q.get("text") or "").strip(),
                 (q.get("image_url") or "").strip(),
+                (q.get("media_url") or "").strip(),
+                mtype, scale,
                 int(q.get("points") or 0),
                 int(q.get("timer_seconds") or 0),
                 int(q.get("time_increment") or 0),

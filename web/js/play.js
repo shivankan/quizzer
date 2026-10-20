@@ -237,7 +237,7 @@ function renderPlayStage() {
     (P.q.timer_seconds > 0 && P.q.type !== "freetext") ? timerRing() : el("span", {})));
 
   if (P.q.text) stage.append(el("div", { style: "font:600 20px/1.35 'Outfit'; margin-bottom:14px; text-wrap:pretty;" }, P.q.text));
-  if (P.q.image_url) stage.append(el("div", { class: "qmedia", style: "margin-bottom:14px;" }, el("img", { src: P.q.image_url })));
+  { const m = mediaEl(P.q, "34vh"); if (m) stage.append(m); }
 
   if (P.phase === "review") {
     stage.append(el("div", { class: "banner violet", style: "margin-top:8px;" }, "⏳ Time's up — the host is judging answers…"));

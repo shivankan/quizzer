@@ -11,6 +11,7 @@ import asyncio
 import json
 import mimetypes
 import os
+import secrets
 import sys
 import time
 
@@ -22,6 +23,23 @@ from app import protocol as P
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(ROOT, "web")
 SEEDS = os.path.join(ROOT, "seeds")
+UPLOADS = os.environ.get("QUIZZER_UPLOADS") or os.path.join(ROOT, "uploads")
+
+# Max upload size. Bodies are read fully into memory, so keep this sane.
+MAX_UPLOAD = int(os.environ.get("QUIZZER_MAX_UPLOAD_MB", "25")) * 1024 * 1024
+
+# Only these land on disk; the extension is derived from this map, never from
+# the client-supplied filename.
+MEDIA_TYPES = {
+    "image/jpeg": ("image", ".jpg"), "image/png": ("image", ".png"),
+    "image/gif": ("image", ".gif"), "image/webp": ("image", ".webp"),
+    "audio/mpeg": ("audio", ".mp3"), "audio/mp4": ("audio", ".m4a"),
+    "audio/aac": ("audio", ".aac"), "audio/ogg": ("audio", ".ogg"),
+    "audio/wav": ("audio", ".wav"), "audio/x-wav": ("audio", ".wav"),
+    "audio/webm": ("audio", ".weba"),
+    "video/mp4": ("video", ".mp4"), "video/webm": ("video", ".webm"),
+    "video/quicktime": ("video", ".mov"),
+}
 HOST = os.environ.get("QUIZZER_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT") or os.environ.get("QUIZZER_PORT") or "8000")
 
@@ -273,6 +291,15 @@ def text_response(text, status="200 OK", ctype="text/plain"):
 def serve_static(path):
     if path == "/" or path == "":
         path = "/index.html"
+    # uploaded media lives outside web/, so route it explicitly
+    if path.startswith("/uploads/"):
+        rel = os.path.normpath(path[len("/uploads/"):]).lstrip("/")
+        full = os.path.join(UPLOADS, rel)
+        if not os.path.abspath(full).startswith(os.path.abspath(UPLOADS)) or not os.path.isfile(full):
+            return text_response("Not found", "404 Not Found")
+        ctype, _ = mimetypes.guess_type(full)
+        with open(full, "rb") as f:
+            return text_response(f.read(), ctype=ctype or "application/octet-stream")
     # prevent path traversal
     rel = os.path.normpath(path).lstrip("/")
     full = os.path.join(WEB, rel)
@@ -445,6 +472,29 @@ def handle_api(req):
         qid, title = db.import_quiz(host_id, data)
         return json_response({"id": qid, "title": title})
 
+    # ---- media upload (raw body; Content-Type decides the kind) ----
+    if path == "/api/upload" and method == "POST":
+        ctype = (req.header("content-type") or "").split(";")[0].strip().lower()
+        kind_ext = MEDIA_TYPES.get(ctype)
+        if not kind_ext:
+            return json_response(
+                {"error": "Unsupported file type. Use JPG/PNG/GIF/WebP, MP3/M4A/WAV/OGG, or MP4/WebM/MOV."},
+                "415 Unsupported Media Type")
+        data = req.body
+        if not data:
+            return json_response({"error": "Empty file."}, "400 Bad Request")
+        if len(data) > MAX_UPLOAD:
+            return json_response(
+                {"error": f"File is too large (limit {MAX_UPLOAD // (1024*1024)} MB)."},
+                "413 Payload Too Large")
+        kind, ext = kind_ext
+        os.makedirs(UPLOADS, exist_ok=True)
+        name = secrets.token_urlsafe(16) + ext
+        with open(os.path.join(UPLOADS, name), "wb") as f:
+            f.write(data)
+        return json_response({"url": "/uploads/" + name, "type": kind,
+                              "bytes": len(data)})
+
     if path == "/api/rooms" and method == "POST":
         d = req.json()
         quiz = db.get_quiz(host_id, d.get("quiz_id"))
@@ -512,7 +562,9 @@ async def handle_conn(reader, writer):
 async def main():
     db.init()
     mimetypes.add_type("application/javascript", ".js")
-    server = await asyncio.start_server(handle_conn, HOST, PORT)
+    # raise the stream buffer so large media bodies aren't constrained by the
+    # default 64 KB limit
+    server = await asyncio.start_server(handle_conn, HOST, PORT, limit=1024 * 1024)
     print(f"\n  Quizzer running →  http://localhost:{PORT}\n")
     print("  Host console:   http://localhost:%d/" % PORT)
     print("  Join a game:    http://localhost:%d/play.html" % PORT)

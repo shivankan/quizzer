@@ -65,7 +65,7 @@ function render() {
     (D.q.timer_seconds > 0) ? bigRing() : el("span", {})));
 
   s.append(el("div", { class: "qbig" }, D.q.text || ""));
-  if (D.q.image_url) s.append(el("div", { class: "qmedia center", style: "margin-bottom:18px;" }, el("img", { src: D.q.image_url })));
+  { const m = mediaEl(D.q, "46vh"); if (m) s.append(m); }
 
   if (D.q.type === "select") {
     const grid = el("div", { class: "grid cols2" });

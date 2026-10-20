@@ -31,6 +31,29 @@ def http_json(path, method="GET", body=None, token=None):
         return json.loads(r.read())
 
 
+def http_bin(path, data, ctype, token=None):
+    """POST a raw body (used for media uploads) and return the JSON reply."""
+    req = urllib.request.Request(BASE + path, data=data, method="POST")
+    req.add_header("Content-Type", ctype)
+    if token:
+        req.add_header("Authorization", "Bearer " + token)
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read())
+
+
+def http_status(path, data, ctype, token=None):
+    """Same, but return the HTTP status so error paths can be asserted."""
+    req = urllib.request.Request(BASE + path, data=data, method="POST")
+    req.add_header("Content-Type", ctype)
+    if token:
+        req.add_header("Authorization", "Bearer " + token)
+    try:
+        with urllib.request.urlopen(req) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
 class WS:
     def __init__(self, name="ws"):
         self.name = name
@@ -308,6 +331,48 @@ def main():
         check(False, "pre-reset session revoked")
     except Exception:
         check(True, "pre-reset session revoked")
+
+    # ===== media: upload, persistence, delivery =====
+    print("\nMedia (image / audio / video):")
+    png = bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+        "0000000d4944415478da63f8cfc0500f0004840180a48a8c21000000004945"
+        "4e44ae426082")
+    up = http_bin("/api/upload", png, "image/png", tok)
+    check(up.get("type") == "image" and up.get("url", "").startswith("/uploads/"),
+          "image upload returns a served URL")
+    check(http_status("/api/upload", b"nope", "text/plain", tok) == 415,
+          "disallowed file type rejected (415)")
+    check(http_status("/api/upload", png, "image/png", None) == 401,
+          "upload requires authentication")
+
+    mqid = http_json("/api/quizzes", "POST", {"title": "MediaQ"}, token=tok)["id"]
+    http_json("/api/quizzes/%d" % mqid, "PUT", {"title": "MediaQ", "questions": [
+        {"type": "buzzer", "text": "Name that tune", "points": 10, "timer_seconds": 0,
+         "time_increment": 10, "media_url": "/uploads/a.mp3", "media_type": "audio",
+         "media_scale": 100},
+        {"type": "buzzer", "text": "Clip", "points": 10, "timer_seconds": 0,
+         "time_increment": 10, "media_url": "/uploads/v.mp4", "media_type": "video",
+         "media_scale": 55},
+        {"type": "buzzer", "text": "Bad", "points": 10, "timer_seconds": 0,
+         "time_increment": 10, "media_url": "/x.png", "media_type": "nope",
+         "media_scale": 9999},
+    ]}, token=tok)
+    mq = http_json("/api/quizzes/%d" % mqid, token=tok)["questions"]
+    check(mq[0]["media_type"] == "audio", "audio media persists")
+    check(mq[1]["media_scale"] == 55, "per-question media size persists")
+    check(mq[2]["media_type"] == "" and mq[2]["media_scale"] == 100,
+          "invalid media type dropped and size clamped")
+
+    mcode = http_json("/api/rooms", "POST", {"quiz_id": mqid}, token=tok)["code"]
+    mh = WS("mhost"); mh.send({"type": "host_join", "token": tok, "code": mcode})
+    mh.wait_for("joined")
+    MP = WS("mplayer"); MP.send({"type": "team_join", "code": mcode, "name": "Zed"})
+    MP.wait_for("joined"); mh.drain()
+    mh.send({"type": "start"})
+    pq = MP.wait_for("question")["q"]
+    check(pq.get("media_url") == "/uploads/a.mp3" and pq.get("media_type") == "audio",
+          "media is delivered to players in the live question")
 
     print("\n" + ("ALL CHECKS PASSED ✅" if not FAILS else f"FAILED: {FAILS}"))
     return 1 if FAILS else 0

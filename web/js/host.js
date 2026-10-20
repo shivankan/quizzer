@@ -120,7 +120,7 @@ async function deleteQuiz(id, title) {
 let E = { id: null, title: "", questions: [] };
 
 const defaultQuestion = (type) => ({
-  type, text: "", image_url: "", points: 10,
+  type, text: "", image_url: "", media_url: "", media_type: "", media_scale: 100, points: 10,
   timer_seconds: type === "buzzer" ? 0 : 30, time_increment: 10,
   multi_select: false, options: type === "select" ? ["", ""] : [], correct: [],
 });
@@ -137,6 +137,8 @@ async function openEditor(id) {
 function normalizeQ(q) {
   return {
     type: q.type, text: q.text || "", image_url: q.image_url || "",
+    media_url: q.media_url || "", media_type: q.media_type || "",
+    media_scale: q.media_scale ?? 100,
     points: q.points ?? 10, timer_seconds: q.timer_seconds ?? 30,
     time_increment: q.time_increment ?? 10, multi_select: !!q.multi_select,
     options: q.options || [], correct: q.correct || [],
@@ -162,6 +164,7 @@ function questionCard(q, i) {
     el("div", { class: "qnum" }, String(i + 1)),
     el("span", { class: "pill " + q.type }, QTYPE_LABEL[q.type]),
     el("div", { class: "grow" }),
+    el("button", { class: "btn sm", onclick: () => openPreview(i) }, "👁 Preview"),
     el("button", { class: "btn sm ghost", onclick: () => { if (i > 0) { swap(i, i - 1); } } }, "↑"),
     el("button", { class: "btn sm ghost", onclick: () => { if (i < E.questions.length - 1) swap(i, i + 1); } }, "↓"),
     el("button", { class: "btn sm ghost", onclick: () => { E.questions.splice(i, 1); renderQuestions(); } }, "🗑"));
@@ -172,8 +175,7 @@ function questionCard(q, i) {
   card.append(el("label", {}, "Question text"));
   card.append(el("textarea", { onchange: bind("text") }, q.text));
 
-  card.append(el("label", {}, "Image URL (optional)"));
-  card.append(el("input", { value: q.image_url, placeholder: "https://…", onchange: bind("image_url") }));
+  card.append(mediaEditor(q, i));
 
   // type-specific
   if (q.type === "select") card.append(selectEditor(q));
@@ -192,6 +194,105 @@ function questionCard(q, i) {
 
 function numField(label, val, onchange) {
   return el("div", {}, el("label", {}, label), el("input", { type: "number", value: val, onchange }));
+}
+
+// ---- media: upload image / audio / video, or paste a URL, plus size ----
+const ACCEPT = "image/*,audio/*,video/*";
+
+function mediaEditor(q, idx) {
+  const wrap = el("div", { style: "margin-top:12px;" });
+  wrap.append(el("label", {}, "Media (optional) — image, audio or video"));
+
+  const body = el("div", {});
+  function redraw() { body.innerHTML = ""; body.append(hasMedia(q) ? attached() : picker()); }
+
+  function hasMedia(x) { return !!(x.media_url || x.image_url); }
+
+  function attached() {
+    const box = el("div", {});
+    box.append(el("div", { class: "row spread", style: "margin-bottom:8px;" },
+      el("span", { class: "pill" }, mediaLabel(q)),
+      el("button", { class: "btn sm ghost", onclick: () => {
+        q.media_url = ""; q.media_type = ""; q.image_url = ""; redraw();
+      } }, "✕ Remove")));
+    const prev = mediaEl(q, "220px");
+    if (prev) box.append(prev);
+    // size control (images and video only — audio has no visual size)
+    if ((q.media_type || "image") !== "audio") {
+      const val = el("span", { class: "scale-val" }, (q.media_scale || 100) + "%");
+      const slider = el("input", { type: "range", min: "20", max: "100", step: "5",
+        value: String(q.media_scale || 100) });
+      slider.addEventListener("input", (e) => {
+        q.media_scale = Number(e.target.value);
+        val.textContent = q.media_scale + "%";
+        const m = box.querySelector(".qmedia");
+        if (m) m.style.width = q.media_scale + "%";
+      });
+      box.append(el("div", { class: "scale-row" },
+        el("span", { class: "muted tiny" }, "Size"), slider, val));
+    }
+    return box;
+  }
+
+  function picker() {
+    const drop = el("div", { class: "media-drop" });
+    const file = el("input", { type: "file", accept: ACCEPT, class: "hide" });
+    const status = el("div", { class: "muted tiny", style: "margin-top:8px;" },
+      "Drag a file here, or");
+    const btn = el("button", { class: "btn sm", onclick: () => file.click() }, "Choose file");
+    file.addEventListener("change", () => file.files[0] && upload(file.files[0], status, redraw, q));
+    drop.append(el("div", { style: "font-size:26px;" }, "🖼️ 🎵 🎬"), status, btn);
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault(); drop.classList.remove("over");
+      const f = e.dataTransfer.files[0];
+      if (f) upload(f, status, redraw, q);
+    });
+    drop.append(file);
+    const urlRow = el("div", { class: "row", style: "margin-top:10px;" },
+      el("input", { type: "text", placeholder: "…or paste a media URL", id: "murl" + idx }),
+      el("button", { class: "btn sm", onclick: () => {
+        const v = $("#murl" + idx).value.trim();
+        if (!v) return;
+        q.media_url = v;
+        q.media_type = guessType(v);
+        redraw();
+      } }, "Use"));
+    return el("div", {}, drop, urlRow);
+  }
+
+  redraw();
+  wrap.append(body);
+  return wrap;
+}
+
+function guessType(url) {
+  const u = url.split("?")[0].toLowerCase();
+  if (/\.(mp3|m4a|aac|ogg|wav|weba)$/.test(u)) return "audio";
+  if (/\.(mp4|webm|mov|m4v)$/.test(u)) return "video";
+  return "image";
+}
+
+async function upload(file, status, done, q) {
+  status.textContent = `Uploading ${file.name}…`;
+  try {
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream",
+                 "Authorization": "Bearer " + Auth.token },
+      body: file,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    q.media_url = data.url;
+    q.media_type = data.type;
+    if (!q.media_scale) q.media_scale = 100;
+    done();
+  } catch (e) {
+    status.textContent = "";
+    status.append(el("span", { class: "err" }, e.message));
+  }
 }
 
 function swap(a, b) { [E.questions[a], E.questions[b]] = [E.questions[b], E.questions[a]]; renderQuestions(); }
@@ -228,6 +329,142 @@ function selectEditor(q) {
   box.append(el("label", { style: "margin-top:10px;" }, "Options (check the correct one" + (q.multi_select ? "s" : "") + ")"));
   box.append(opts);
   return box;
+}
+
+// ============ PREVIEW: how this question lands on each surface ============
+
+let PV = { idx: 0, surface: "player" };
+
+function openPreview(i) {
+  PV = { idx: i, surface: PV.surface || "player" };
+  let m = $("#previewModal");
+  if (m) m.remove();
+  m = el("div", { class: "modal", id: "previewModal" },
+    el("div", { class: "modal-card" },
+      el("div", { class: "row spread", style: "margin-bottom:14px;" },
+        el("h2", { style: "margin:0;" }, "Preview — question " + (i + 1)),
+        el("button", { class: "btn sm ghost", onclick: closePreview }, "✕ Close")),
+      el("div", { class: "seg", id: "pvSeg", style: "max-width:460px;" },
+        el("button", { class: "seg-btn", "data-s": "player" }, "📱 Player"),
+        el("button", { class: "seg-btn", "data-s": "presenter" }, "📺 Presenter"),
+        el("button", { class: "seg-btn", "data-s": "host" }, "🎛 Host")),
+      el("p", { class: "muted tiny center", id: "pvNote", style: "margin:0 0 14px;" }, ""),
+      el("div", { id: "pvBody" }),
+      el("div", { class: "row", style: "justify-content:center; margin-top:16px; gap:10px;" },
+        el("button", { class: "btn sm", onclick: () => stepPreview(-1), disabled: i === 0 }, "← Prev question"),
+        el("button", { class: "btn sm", onclick: () => stepPreview(1), disabled: i >= E.questions.length - 1 }, "Next question →"))));
+  m.addEventListener("click", (e) => { if (e.target === m) closePreview(); });
+  document.body.append(m);
+  $$("#pvSeg .seg-btn").forEach((b) => { b.onclick = () => { PV.surface = b.dataset.s; renderPreview(); }; });
+  document.addEventListener("keydown", pvKeys);
+  renderPreview();
+}
+
+function closePreview() {
+  const m = $("#previewModal");
+  if (m) m.remove();
+  document.removeEventListener("keydown", pvKeys);
+}
+function pvKeys(e) {
+  if (e.key === "Escape") closePreview();
+  else if (e.key === "ArrowRight") stepPreview(1);
+  else if (e.key === "ArrowLeft") stepPreview(-1);
+}
+function stepPreview(d) {
+  const n = PV.idx + d;
+  if (n < 0 || n >= E.questions.length) return;
+  openPreview(n);
+}
+
+function renderPreview() {
+  const q = E.questions[PV.idx];
+  if (!q) return;
+  $$("#pvSeg .seg-btn").forEach((b) => b.classList.toggle("on", b.dataset.s === PV.surface));
+  const body = $("#pvBody");
+  body.innerHTML = "";
+  const note = $("#pvNote");
+  const badge = q.type === "buzzer" ? "BUZZER" : q.type === "freetext" ? "FREE TEXT"
+    : (q.multi_select ? "SELECT MANY" : "SELECT ONE");
+
+  if (PV.surface === "player") {
+    note.textContent = "What each team sees on their phone.";
+    const card = el("div", { class: "card" },
+      el("div", { class: "row spread", style: "margin-bottom:8px;" },
+        el("span", { class: "pill " + q.type }, badge),
+        el("span", { class: "pill" }, (q.points || 0) + " PTS")));
+    const m = mediaEl(q, "200px"); if (m) card.append(m);
+    if (q.text) card.append(el("div", { style: "font:600 18px/1.35 'Outfit'; margin-bottom:12px;" }, q.text));
+    if (q.type === "buzzer") {
+      card.append(el("div", { class: "center" },
+        el("div", { class: "buzzdisc", style: "width:150px;" },
+          el("div", { class: "gloss" }), el("div", { class: "face" }, el("span", {}, "BUZZ")))));
+    } else if (q.type === "freetext") {
+      card.append(el("div", { class: "timerbar", style: "margin-bottom:10px;" }, el("div", { style: "width:70%;" })));
+      card.append(el("textarea", { placeholder: "Type your answer…", style: "min-height:70px;" }));
+    } else {
+      const box = el("div", { class: "stack" });
+      (q.options || []).forEach((o, i2) => box.append(el("div", { class: "opt-card" + (i2 === 0 ? " on" : "") },
+        el("span", { class: "chip-letter" }, String.fromCharCode(65 + i2)),
+        el("span", { class: "grow" }, o || "(empty option)"),
+        el("span", { class: "tick" }, "✓"))));
+      card.append(box);
+    }
+    if (q.type !== "buzzer") card.append(el("button", { class: "btn primary block lg", style: "margin-top:14px;" }, "🔒 Lock in"));
+    body.append(el("div", { class: "phone-frame" }, card));
+
+  } else if (PV.surface === "presenter") {
+    note.textContent = "The shared screen — cast to a TV or shown in Present mode.";
+    const stage = el("div", { class: "tv-frame" },
+      el("div", { class: "row", style: "gap:10px; margin-bottom:10px;" },
+        el("span", { class: "pill " + q.type }, badge),
+        el("span", { class: "pill" }, (q.points || 0) + " PTS")));
+    if (q.text) stage.append(el("div", { class: "qbig", style: "font-size:clamp(22px,3vw,44px);" }, q.text));
+    const m = mediaEl(q, "300px"); if (m) stage.append(m);
+    if (q.type === "select") {
+      const grid = el("div", { class: "grid cols2" });
+      (q.options || []).forEach((o, i2) => grid.append(el("div", { class: "opt-card", style: "font-size:18px;" },
+        el("span", { class: "chip-letter" }, String.fromCharCode(65 + i2)),
+        el("span", { class: "grow" }, o || "(empty option)"))));
+      stage.append(grid);
+    } else if (q.type === "buzzer") {
+      stage.append(el("div", { class: "row center", style: "justify-content:center; margin-top:12px;" },
+        el("span", { class: "armed-note", style: "font-size:17px;" }, el("span", { class: "armed-dot" }), "Buzzers are armed")));
+    }
+    body.append(stage);
+
+  } else {
+    note.textContent = "Your control screen, with the answer key visible.";
+    const card = el("div", { class: "card" },
+      el("div", { class: "row spread", style: "margin-bottom:8px;" },
+        el("div", { class: "row", style: "gap:8px;" },
+          el("span", { class: "pill " + q.type }, badge),
+          el("span", { class: "pill" }, (q.points || 0) + " PTS")),
+        el("span", { class: "muted tiny" }, q.timer_seconds ? q.timer_seconds + "s timer" : "no timer")));
+    if (q.text) card.append(el("div", { class: "qbig", style: "font-size:24px;" }, q.text));
+    const m = mediaEl(q, "180px"); if (m) card.append(m);
+    if (q.type === "select") {
+      const grid = el("div", { class: "grid cols2" });
+      (q.options || []).forEach((o, i2) => {
+        const right = (q.correct || []).includes(i2);
+        grid.append(el("div", { class: "opt-card" + (right ? " on" : "") },
+          el("span", { class: "chip-letter" }, String.fromCharCode(65 + i2)),
+          el("span", { class: "grow" }, o || "(empty option)"),
+          right ? el("span", { class: "pill green" }, "✓ correct") : null));
+      });
+      card.append(grid);
+      card.append(el("p", { class: "muted tiny", style: "margin-top:8px;" }, "Auto-graded against this key."));
+    } else if (q.type === "buzzer") {
+      card.append(el("div", { class: "row", style: "gap:8px; margin-top:10px;" },
+        el("button", { class: "btn good grow" }, "✓ Correct"),
+        el("button", { class: "btn bad grow" }, "✗ Wrong — reopen")));
+      card.append(el("p", { class: "muted tiny", style: "margin-top:8px;" },
+        `First correct buzz scores ${q.points || 0}; after a wrong attempt, ${Math.floor((q.points || 0) / 2)}.`));
+    } else {
+      card.append(el("p", { class: "muted tiny", style: "margin-top:10px;" },
+        "Answers stay hidden until the timer ends, then you mark each team ✓/✗."));
+    }
+    body.append(card);
+  }
 }
 
 $("#saveQuiz").onclick = async () => {
@@ -349,7 +586,7 @@ function renderPresent() {
     if (H.phase === "active" && H.q.timer_seconds > 0) { const r = makeRing(130, 42); H.pRing = r; head.append(r.node); }
     s.append(head);
     s.append(el("div", { class: "qbig", style: "font-size:clamp(28px,4.5vw,64px);" }, H.q.text || ""));
-    if (H.q.image_url) s.append(el("div", { class: "qmedia center", style: "margin-bottom:14px;" }, el("img", { src: H.q.image_url })));
+    { const m = mediaEl(H.q, "40vh"); if (m) s.append(m); }
     if (H.q.type === "select") {
       const grid = el("div", { class: "grid cols2" });
       H.q.options.forEach((o, i) => grid.append(el("div", { class: "opt-card", style: "font-size:20px;" },
@@ -485,7 +722,7 @@ function renderStage() {
       el("span", { class: "pill" }, H.q.points + " PTS")),
     (H.phase === "active" && H.q.timer_seconds > 0 && H.q.type !== "freetext") ? hostRing() : el("span", {})));
   s.append(el("div", { class: "qbig", style: "font-size:clamp(24px,3vw,40px);" }, H.q.text || "(no text)"));
-  if (H.q.image_url) s.append(el("div", { class: "qmedia", style: "margin-bottom:16px;" }, el("img", { src: H.q.image_url })));
+  { const m = mediaEl(H.q, "26vh"); if (m) s.append(m); }
 
   if (H.q.type === "select") {
     const grid = el("div", { class: "grid cols2" });

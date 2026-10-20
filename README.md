@@ -51,6 +51,29 @@ Set a different port with `QUIZZER_PORT=9000 python3 server.py`.
 - Per-round award summary, **editable per team**, before finalizing
 - Live scoreboard on the shared display and on demand for players
 
+## Question media
+
+Each question can carry one **image, audio clip, or video**. In the editor, drag a
+file onto the drop zone (or pick one, or paste a URL). Uploads go to `POST /api/upload`
+as a raw body — the `Content-Type` decides the kind, and the extension is derived from
+that map rather than the client-supplied filename.
+
+- Accepted: JPG, PNG, GIF, WebP · MP3, M4A, AAC, OGG, WAV · MP4, WebM, MOV
+- Size limit: 25 MB, override with `QUIZZER_MAX_UPLOAD_MB`
+- Stored in `uploads/` (override with `QUIZZER_UPLOADS`) and served from `/uploads/<name>`
+- A **size slider (20–100%)** sets how large the image or video renders, applied
+  identically on every surface. Audio has no size control.
+
+**Preview while authoring:** the 👁 Preview button on each question shows exactly how it
+lands on the **Player** phone, the **Presenter** screen, and the **Host** console, with
+arrow keys to step between questions. The Host tab is the only one that reveals the
+answer key — a quick way to confirm you haven't leaked answers onto the shared screen.
+
+> ⚠️ **Uploads do not survive a redeploy on free hosting.** `uploads/` is an ordinary
+> directory on the ephemeral disk, so media is lost whenever the service restarts, and
+> JSON export does not embed the files. For media rounds either attach a persistent disk
+> (see `QUIZZER_DB`) or paste URLs to files hosted elsewhere.
+
 ## Password reset (email)
 
 Hosts who forget a password use **Forgot password?** on the sign-in card. The server

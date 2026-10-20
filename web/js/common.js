@@ -145,6 +145,40 @@ function avatar(team, size) {
 }
 
 const QTYPE_LABEL = { buzzer: "Buzzer", freetext: "Free text", select: "Select" };
+
+// ---- media ----
+// One renderer for every surface so authoring preview and live play can't drift.
+// `cap` is the surface's natural max height; media_scale shrinks within that.
+function mediaEl(q, cap) {
+  const url = q.media_url || q.image_url;
+  if (!url) return null;
+  const type = q.media_type || (q.image_url ? "image" : "");
+  const scale = Math.max(20, Math.min(100, Number(q.media_scale) || 100));
+  const box = el("div", { class: "qmedia" });
+  box.style.width = scale + "%";
+  box.style.margin = "0 auto 14px";
+
+  if (type === "audio") {
+    box.style.width = "100%";
+    box.append(el("div", { class: "audio-wrap" },
+      el("div", { class: "audio-icon" }, "♪"),
+      el("audio", { src: url, controls: "controls", preload: "metadata", style: "width:100%;" })));
+  } else if (type === "video") {
+    const v = el("video", { src: url, controls: "controls", playsinline: "playsinline", preload: "metadata" });
+    if (cap) v.style.maxHeight = cap;
+    box.append(v);
+  } else {
+    const img = el("img", { src: url, alt: "" });
+    if (cap) img.style.maxHeight = cap;
+    box.append(img);
+  }
+  return box;
+}
+
+function mediaLabel(q) {
+  const t = q.media_type || (q.image_url || q.media_url ? "image" : "");
+  return { image: "🖼 Image", audio: "🎵 Audio", video: "🎬 Video" }[t] || "";
+}
 const SVGNS = "http://www.w3.org/2000/svg";
 
 // SVG countdown ring. Returns {node, set(fraction)} — fraction 1→0 drains + colors.
