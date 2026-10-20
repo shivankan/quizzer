@@ -4,116 +4,454 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Quizzer — live quiz platform</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/css/style.css">
+<style>
+  :root {
+    --neon-purple: #ff006e;
+    --neon-cyan: #00f5ff;
+    --neon-green: #39ff14;
+    --neon-yellow: #ffff00;
+    --neon-pink: #ff10f0;
+    --arcade-gold: #ffd700;
+    --dark-bg: #0a0e27;
+    font-family: 'Courier New', monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    margin: 0;
+    background: linear-gradient(-45deg, #0a0e27, #1a0033, #001a4d, #0f1e47);
+    background-size: 400% 400%;
+    animation: arcadeGlow 12s ease infinite;
+    color: var(--neon-cyan);
+    padding: 24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px));
+    min-height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow-x: hidden;            /* scene bleeds sideways; page may scroll down */
+  }
+
+  /* CRT scanlines */
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg,
+      rgba(255,0,110,.03), rgba(255,0,110,.03) 1px, transparent 1px, transparent 2px);
+    animation: scanlines .15s linear infinite;
+    pointer-events: none; z-index: 99;
+  }
+
+  /* ---------- arcade scene (decorative) ---------- */
+  .scene { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  .runner {
+    position: absolute; width: 80px; height: 100px; bottom: 25%; left: -80px;
+    background: linear-gradient(90deg, transparent 0%, #ff0000 10%, #ff0000 35%,
+      #ffcc00 35%, #ffcc00 65%, #3333ff 65%, #3333ff 100%);
+    box-shadow: 0 0 40px rgba(255,0,0,.8);
+    border: 2px solid rgba(255,0,0,.6);
+    animation: runAcross 6s linear infinite;
+  }
+  .runner::before {
+    content: ''; position: absolute; width: 30px; height: 30px; top: 5px; left: 10px;
+    background: radial-gradient(circle, #ffcc99, #ff9966); border-radius: 50%;
+    box-shadow: 0 0 15px rgba(255,153,102,.7);
+  }
+  .coin {
+    position: absolute; width: 30px; height: 30px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--arcade-gold), #ffaa00);
+    box-shadow: 0 0 20px rgba(255,215,0,.8);
+    animation: coinSpin 1.5s ease-in-out infinite;
+  }
+  .coin-1 { top: 20%; left: 5%; }      .coin-2 { top: 15%; left: 25%; animation-delay: .3s; }
+  .coin-3 { top: 35%; left: 70%; animation-delay: .6s; } .coin-4 { top: 50%; left: 10%; animation-delay: .9s; }
+  .coin-5 { top: 65%; left: 85%; animation-delay: 1.2s; } .coin-6 { top: 40%; left: 40%; animation-delay: .4s; }
+
+  .block {
+    position: absolute; width: 50px; height: 50px;
+    background: linear-gradient(135deg, #ffcc00, #ff9900);
+    border: 3px solid #ff6600; color: #ff0000;
+    box-shadow: 0 0 20px rgba(255,153,0,.7), inset -3px -3px 8px rgba(0,0,0,.3);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 2rem;
+    animation: blockBob 2s ease-in-out infinite;
+  }
+  .block-1 { top: 15%; right: 10%; } .block-2 { top: 55%; right: 20%; animation-delay: .5s; }
+  .block-3 { top: 30%; left: 8%; animation-delay: 1s; }
+
+  .shroom {
+    position: absolute; width: 40px; height: 50px;
+    background: linear-gradient(135deg, #ff4444, #ff0000);
+    border-radius: 50% 50% 30% 30%; box-shadow: 0 0 20px rgba(255,0,0,.6);
+    animation: shroomBob 2.5s ease-in-out infinite;
+  }
+  .shroom::before {
+    content: ''; position: absolute; width: 30px; height: 20px; top: -5px; left: 5px;
+    background: #ffcc00; border-radius: 50%; box-shadow: inset 0 0 8px rgba(0,0,0,.3);
+  }
+  .shroom-1 { top: 28%; left: 50%; } .shroom-2 { top: 60%; left: 35%; animation-delay: .7s; }
+
+  .pipe {
+    position: absolute; background: linear-gradient(90deg, #00aa00, #00dd00);
+    border: 3px solid #006600; border-radius: 15px 15px 0 0;
+    box-shadow: 0 0 25px rgba(0,200,0,.6), inset 0 0 15px rgba(0,0,0,.3);
+    animation: pipeScale 3s ease-in-out infinite;
+  }
+  .pipe-1 { width: 60px; height: 150px; top: 20%; left: 15%; }
+  .pipe-2 { width: 60px; height: 120px; bottom: 10%; right: 12%; animation-delay: .3s; }
+
+  .creep {
+    position: absolute; width: 45px; height: 40px;
+    background: radial-gradient(circle at 35% 35%, #aa5500, #664400);
+    border-radius: 50% 50% 45% 45%; box-shadow: 0 0 20px rgba(150,80,0,.7);
+    animation: creepWalk 8s linear infinite;
+  }
+  .creep-1 { top: 35%; } .creep-2 { top: 70%; animation-delay: 2s; }
+
+  .asteroid { position: absolute; border: 2px solid var(--neon-cyan); opacity: .6; }
+  .asteroid-1 { width: 60px; height: 60px; top: 10%; left: 10%; border-color: var(--neon-purple); animation: spin 20s linear infinite; }
+  .asteroid-2 { width: 80px; height: 80px; top: 70%; right: 5%; animation: spin 25s linear reverse infinite; }
+  .asteroid-3 { width: 50px; height: 50px; top: 40%; right: 10%; border-color: var(--neon-pink); animation: spin 15s linear infinite; }
+  .asteroid-4 { width: 70px; height: 70px; bottom: 15%; left: 5%; border-color: var(--neon-yellow); animation: spin 30s linear reverse infinite; }
+
+  .star { position: absolute; width: 3px; height: 3px; background: var(--neon-yellow); box-shadow: 0 0 10px var(--neon-yellow); }
+  .star-1 { top: 20%; left: 15%; animation: floatUp 15s linear infinite; }
+  .star-2 { top: 30%; left: 80%; animation: floatUp 18s linear infinite 2s; }
+  .star-3 { top: 50%; left: 5%;  animation: floatUp 20s linear infinite 4s; }
+  .star-4 { top: 60%; left: 90%; animation: floatUp 22s linear infinite 1s; }
+  .star-5 { top: 15%; left: 50%; animation: floatUp 17s linear infinite 3s; }
+
+  .orb { position: absolute; border-radius: 50%; }
+  .orb-1 { width: 150px; height: 150px; top: 5%; right: 10%;
+    background: radial-gradient(circle, rgba(255,0,110,.4) 0%, transparent 70%);
+    box-shadow: 0 0 40px rgba(255,0,110,.6); animation: bob 4s ease-in-out infinite; }
+  .orb-2 { width: 120px; height: 120px; bottom: 10%; left: 5%;
+    background: radial-gradient(circle, rgba(0,245,255,.4) 0%, transparent 70%);
+    box-shadow: 0 0 40px rgba(0,245,255,.6); animation: bob 5s ease-in-out infinite 1s; }
+  .orb-3 { width: 100px; height: 100px; top: 50%; right: 5%;
+    background: radial-gradient(circle, rgba(57,255,20,.3) 0%, transparent 70%);
+    box-shadow: 0 0 30px rgba(57,255,20,.5); animation: pulseHard 3s ease-in-out infinite; }
+
+  /* ---------- cabinet ---------- */
+  .cabinet {
+    width: 100%; max-width: 440px; padding: 1.6rem 1.2rem;
+    position: relative; z-index: 10;
+    background: rgba(10,14,39,.86);
+    border: 3px solid var(--neon-cyan);
+    box-shadow: 0 0 40px rgba(0,245,255,.5), inset 0 0 30px rgba(255,0,110,.1);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: transform .2s ease;
+  }
+  .status {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: .7rem; color: var(--neon-green); margin-bottom: .8rem;
+    text-shadow: 0 0 10px var(--neon-green); letter-spacing: .1em;
+  }
+  .logo {
+    text-align: center; margin-bottom: 1.2rem; font-size: 2rem; font-weight: 700;
+    letter-spacing: .1em; color: var(--neon-yellow);
+    text-shadow: 0 0 20px var(--neon-yellow), 0 0 40px var(--neon-pink);
+    font-family: 'Arial Black', 'Arial Bold', sans-serif;
+  }
+  .logo-dot {
+    display: inline-block; width: 12px; height: 12px; background: var(--neon-pink);
+    margin-right: .5rem; vertical-align: middle; box-shadow: 0 0 20px var(--neon-pink);
+    animation: pulseHard 1s ease-in-out infinite;
+  }
+  .tagline { text-align: center; font-size: .72rem; color: var(--neon-cyan);
+    letter-spacing: .08em; margin: -.8rem 0 1.1rem; opacity: .85; }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: 1.2rem; }
+  .tab {
+    padding: .75rem 1rem; border: 2px solid var(--neon-cyan); background: rgba(0,0,0,.5);
+    color: var(--neon-cyan); font: 700 .85rem 'Courier New', monospace; cursor: pointer;
+    text-transform: uppercase; letter-spacing: .05em; transition: all .2s ease;
+    position: relative; overflow: hidden;
+  }
+  .tab:hover:not(.active) { border-color: var(--neon-yellow); box-shadow: 0 0 15px rgba(255,255,0,.4); }
+  .tab.active {
+    background: var(--neon-pink); color: #000; border-color: var(--neon-yellow);
+    box-shadow: 0 0 30px rgba(255,0,110,.8), inset 0 0 20px rgba(255,0,110,.3);
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeInUp .45s ease-out; }
+
+  .section-title {
+    font: 900 .95rem 'Arial Black', sans-serif; margin-bottom: .7rem; color: var(--neon-yellow);
+    text-transform: uppercase; letter-spacing: .05em; text-shadow: 0 0 15px rgba(255,255,0,.5);
+  }
+
+  /* sub-toggle: create vs sign in */
+  .subtabs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin-bottom: .9rem; }
+  .subtab {
+    padding: .5rem .5rem; border: 2px solid var(--neon-green); background: rgba(0,0,0,.45);
+    color: var(--neon-green); font: 700 .72rem 'Courier New', monospace; cursor: pointer;
+    text-transform: uppercase; letter-spacing: .04em; transition: all .18s ease;
+  }
+  .subtab.on { background: var(--neon-green); color: #001b00; box-shadow: 0 0 22px rgba(57,255,20,.7); }
+
+  .form-group { margin-bottom: .85rem; }
+  label {
+    display: block; font: 700 .72rem 'Courier New', monospace; margin-bottom: .3rem;
+    color: var(--neon-green); text-transform: uppercase; letter-spacing: .05em;
+    text-shadow: 0 0 10px var(--neon-green);
+  }
+  label .hint { color: rgba(57,255,20,.6); text-shadow: none; }
+  input {
+    width: 100%; padding: .65rem .75rem; background: rgba(0,0,0,.7);
+    border: 2px solid var(--neon-cyan); color: var(--neon-yellow);
+    font: .9rem 'Courier New', monospace; transition: all .2s ease;
+    box-shadow: 0 0 15px rgba(0,245,255,.3);
+  }
+  input:focus {
+    outline: none; border-color: var(--neon-pink); background: rgba(255,0,110,.1);
+    box-shadow: 0 0 30px rgba(255,0,110,.6); text-shadow: 0 0 10px rgba(255,255,0,.5);
+  }
+  input::placeholder { color: rgba(0,245,255,.45); }
+
+  .btn {
+    width: 100%; padding: .8rem 1rem; border: 2px solid var(--neon-yellow);
+    background: var(--neon-pink); color: #000; cursor: pointer;
+    font: 900 .85rem 'Arial Black', sans-serif; text-transform: uppercase; letter-spacing: .05em;
+    box-shadow: 0 0 20px rgba(255,0,110,.8); transition: all .2s ease; margin-bottom: .5rem;
+  }
+  .btn:hover:not(:disabled) { transform: scale(1.03); filter: brightness(1.25);
+    box-shadow: 0 0 40px rgba(255,0,110,1), 0 0 20px rgba(255,255,0,.8); }
+  .btn:active:not(:disabled) { transform: scale(.98); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent; border-color: var(--neon-cyan); color: var(--neon-cyan);
+    box-shadow: 0 0 15px rgba(0,245,255,.5);
+  }
+  .btn-secondary:hover:not(:disabled) { background: rgba(0,245,255,.18); box-shadow: 0 0 30px rgba(0,245,255,.8); }
+  .btn-link {
+    width: 100%; background: none; border: none; cursor: pointer; padding: .35rem;
+    color: var(--neon-cyan); font: 700 .72rem 'Courier New', monospace;
+    text-transform: uppercase; letter-spacing: .06em; opacity: .85;
+  }
+  .btn-link:hover { opacity: 1; text-shadow: 0 0 12px var(--neon-cyan); }
+
+  .divider { text-align: center; margin: .9rem 0 .6rem; color: var(--neon-cyan);
+    font: 700 .7rem 'Courier New', monospace; letter-spacing: .1em; text-transform: uppercase; opacity: .8; }
+
+  .info-box {
+    background: rgba(57,255,20,.1); border: 2px dashed var(--neon-green);
+    padding: .75rem; font: .74rem 'Courier New', monospace; color: var(--neon-green);
+    margin-top: .9rem; text-shadow: 0 0 10px var(--neon-green); line-height: 1.5;
+  }
+  .info-box a { color: var(--neon-yellow); }
+
+  .err {
+    min-height: 1rem; color: #ff5d7a; font: 700 .74rem 'Courier New', monospace;
+    text-shadow: 0 0 10px rgba(255,0,60,.8); margin-bottom: .4rem;
+  }
+  .good-box {
+    background: rgba(57,255,20,.12); border: 2px solid var(--neon-green);
+    padding: .7rem; font: 700 .74rem 'Courier New', monospace; color: var(--neon-green);
+    margin-bottom: .5rem; text-shadow: 0 0 10px var(--neon-green); line-height: 1.5;
+  }
+  .note { font: .7rem 'Courier New', monospace; color: rgba(0,245,255,.75); margin-top: .5rem; line-height: 1.5; }
+  .hide { display: none !important; }
+
+  @keyframes arcadeGlow { 0%,100% { background-position: 0% 50%; filter: brightness(1); }
+                          50% { background-position: 100% 50%; filter: brightness(1.2); } }
+  @keyframes scanlines { 0% { transform: translateY(0); } 100% { transform: translateY(10px); } }
+  @keyframes spin { 0% { transform: rotateZ(0) rotateX(0); } 100% { transform: rotateZ(360deg) rotateX(180deg); } }
+  @keyframes bob { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.1); } }
+  @keyframes pulseHard { 0%,100% { opacity: .4; transform: scale(1); filter: brightness(1); }
+                         50% { opacity: 1; transform: scale(1.2); filter: brightness(1.5); } }
+  @keyframes floatUp { 0% { transform: translateY(100vh) rotate(0); } 100% { transform: translateY(-100vh) rotate(360deg); } }
+  @keyframes runAcross { 0% { transform: translateX(-20%); } 100% { transform: translateX(120vw); } }
+  @keyframes coinSpin { 0% { transform: rotateY(0) translateY(0); }
+                        50% { transform: rotateY(180deg) translateY(-20px); }
+                        100% { transform: rotateY(360deg) translateY(0); } }
+  @keyframes creepWalk { 0%,100% { transform: translateX(0) scaleX(1); } 50% { transform: translateX(200px) scaleX(-1); } }
+  @keyframes pipeScale { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(1.1); } }
+  @keyframes blockBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+  @keyframes shroomBob { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-20px) rotate(5deg); } }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+  /* the scene is pure decoration: drop it on small screens so the form owns the view */
+  @media (max-width: 720px) {
+    .scene { opacity: .45; }
+    .pipe, .runner, .creep { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    .scene { opacity: .3; }
+  }
+</style>
 </head>
 <body>
-<div class="wrap narrow">
-  <div class="topbar">
-    <div class="brand"><span class="dot"></span> <span class="name">QUIZZER</span></div>
+
+<!-- decorative arcade scene -->
+<div class="scene" aria-hidden="true">
+  <div class="runner"></div>
+  <div class="coin coin-1"></div><div class="coin coin-2"></div><div class="coin coin-3"></div>
+  <div class="coin coin-4"></div><div class="coin coin-5"></div><div class="coin coin-6"></div>
+  <div class="block block-1">?</div><div class="block block-2">?</div><div class="block block-3">?</div>
+  <div class="shroom shroom-1"></div><div class="shroom shroom-2"></div>
+  <div class="pipe pipe-1"></div><div class="pipe pipe-2"></div>
+  <div class="creep creep-1"></div><div class="creep creep-2"></div>
+  <div class="asteroid asteroid-1"></div><div class="asteroid asteroid-2"></div>
+  <div class="asteroid asteroid-3"></div><div class="asteroid asteroid-4"></div>
+  <div class="star star-1"></div><div class="star star-2"></div><div class="star star-3"></div>
+  <div class="star star-4"></div><div class="star star-5"></div>
+  <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+</div>
+
+<div class="cabinet">
+  <div class="status">
+    <span>▶ INSERT COIN</span>
+    <span id="statusRight">P1 READY</span>
   </div>
 
-  <div class="card center" style="margin-bottom:18px;">
-    <h1>Run a live quiz</h1>
-    <p class="muted">Buzzer rounds, free-text, and multiple-choice — scored live, from one screen.</p>
+  <div class="logo"><span class="logo-dot"></span>QUIZZER</div>
+  <div class="tagline">BUZZER · FREE-TEXT · MULTIPLE CHOICE</div>
+
+  <div class="tabs">
+    <button class="tab" data-tab="host" type="button">HOST</button>
+    <button class="tab active" data-tab="play" type="button">PLAY</button>
   </div>
 
-  <!-- Host auth -->
-  <div class="card" id="authCard">
-    <div class="seg" id="modeSeg">
-      <button class="seg-btn" data-mode="signup">Create account</button>
-      <button class="seg-btn" data-mode="login">Sign in</button>
-    </div>
-    <p class="muted tiny center" id="modeHint" style="margin:0 0 14px;"></p>
-    <div class="stack">
-      <div>
-        <label>Email</label>
+  <!-- ============ HOST ============ -->
+  <section class="panel" id="panel-host">
+    <div class="section-title">🎯 HOST A QUIZ</div>
+
+    <div id="authBlock">
+      <div class="subtabs" id="modeSeg">
+        <button class="subtab" data-mode="signup" type="button">New Host</button>
+        <button class="subtab" data-mode="login" type="button">Sign In</button>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
         <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
       </div>
-      <div>
-        <label>Password <span class="tiny muted" id="pwHint"></span></label>
+      <div class="form-group">
+        <label for="password">Password <span class="hint" id="pwHint"></span></label>
         <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
       </div>
+
       <div class="err" id="authErr"></div>
       <div id="authFix"></div>
-      <button class="btn primary block lg" id="authBtn">Create account</button>
-      <button class="btn ghost sm hide" id="forgotLink" style="margin-top:-4px;">Forgot password?</button>
+      <button class="btn" id="authBtn" type="button">Create Account</button>
+      <button class="btn-link hide" id="forgotLink" type="button">Forgot password?</button>
     </div>
-  </div>
 
-  <!-- forgot password -->
-  <div class="card hide" id="forgotCard">
-    <h2>Reset your password</h2>
-    <p class="muted tiny">We'll email you a link to choose a new one. It works once and expires in 30 minutes.</p>
-    <div class="stack" style="margin-top:12px;">
-      <div>
-        <label>Email</label>
+    <!-- forgot password -->
+    <div id="forgotBlock" class="hide">
+      <div class="form-group">
+        <label for="fgEmail">Email</label>
         <input id="fgEmail" type="email" autocomplete="email" placeholder="you@example.com">
       </div>
       <div class="err" id="fgErr"></div>
       <div id="fgDone"></div>
-      <button class="btn primary block" id="fgBtn">Send reset link</button>
-      <button class="btn ghost sm" id="fgBack">← Back to sign in</button>
+      <button class="btn" id="fgBtn" type="button">Send Reset Link</button>
+      <button class="btn-link" id="fgBack" type="button">← Back to sign in</button>
+      <div class="info-box">▶ LINK WORKS ONCE · EXPIRES IN 30 MIN</div>
     </div>
-  </div>
+  </section>
 
-  <!-- Join a game -->
-  <div class="card" style="margin-top:16px;">
-    <h2>Join a game</h2>
-    <p class="muted tiny">Playing in someone's quiz? Enter the room code — no account needed.</p>
-    <div class="row">
-      <input id="joinCode" placeholder="ROOM CODE" style="text-transform:uppercase; letter-spacing:.15em; font-weight:700;" maxlength="5">
-      <button class="btn" id="joinBtn">Join →</button>
+  <!-- ============ PLAY ============ -->
+  <section class="panel active" id="panel-play">
+    <div class="section-title">🎮 JOIN A GAME</div>
+
+    <div class="form-group">
+      <label for="joinCode">Room Code</label>
+      <input id="joinCode" type="text" placeholder="XXXXX" maxlength="5"
+             style="text-transform:uppercase; letter-spacing:.2em; font-weight:900; text-align:center; font-size:1.3rem;">
     </div>
-    <p class="tiny muted" style="margin-top:10px;">Showing the game on a TV? Open the <a href="/display.html">shared display</a>.</p>
-  </div>
+    <div class="err" id="joinErr"></div>
+    <button class="btn" id="joinBtn" type="button">Join Game</button>
+
+    <div class="info-box">
+      ▶ ASK YOUR HOST FOR THE 5-CHARACTER CODE<br>
+      ▶ NO ACCOUNT NEEDED — JUST PICK A TEAM NAME
+    </div>
+
+    <div class="divider">— SHOWING ON A TV? —</div>
+    <button class="btn btn-secondary" id="displayBtn" type="button">Open Shared Display</button>
+  </section>
 </div>
 
 <script src="/js/common.js"></script>
 <script>
-  // already logged in? go to dashboard
+  // already signed in? straight to the console
   if (Auth.token) location.href = "/host.html";
 
-  // Default to signup: accounts live in this app's own database, so a first-time
-  // host has nothing to sign in with. Returning hosts get their email remembered.
+  /* ---------- tabs ---------- */
+  function showTab(name) {
+    $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+    $("#panel-host").classList.toggle("active", name === "host");
+    $("#panel-play").classList.toggle("active", name === "play");
+    $("#statusRight").textContent = name === "host" ? "HOST MODE" : "P1 READY";
+  }
+  $$(".tab").forEach(t => { t.onclick = () => showTab(t.dataset.tab); });
+
+  /* ---------- host auth ---------- */
+  // Accounts live in this app's own database, so a first-time host has nothing
+  // to sign in with: default to New Host unless we remember them.
   const lastEmail = localStorage.getItem("qz_last_email") || "";
   let mode = lastEmail ? "login" : "signup";
   const $email = $("#email"), $pw = $("#password"), $err = $("#authErr");
   const $btn = $("#authBtn"), $hint = $("#pwHint"), $fix = $("#authFix");
   if (lastEmail) $email.value = lastEmail;
 
-  function setMode(m) { mode = m; render(); }
-
-  function render() {
-    $$("#modeSeg .seg-btn").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
+  function setMode(m) { mode = m; renderMode(); }
+  function renderMode() {
+    $$("#modeSeg .subtab").forEach(b => b.classList.toggle("on", b.dataset.mode === mode));
     if (mode === "login") {
-      $btn.textContent = "Sign in";
-      $pw.autocomplete = "current-password";
-      $hint.textContent = "";
-      $("#modeHint").textContent = "Welcome back — sign in to your quizzes.";
+      $btn.textContent = "Sign In"; $pw.autocomplete = "current-password"; $hint.textContent = "";
     } else {
-      $btn.textContent = "Create account";
-      $pw.autocomplete = "new-password";
-      $hint.textContent = "(6+ characters)";
-      $("#modeHint").textContent = "New here? Hosting a quiz needs an account — it takes a second.";
+      $btn.textContent = "Create Account"; $pw.autocomplete = "new-password"; $hint.textContent = "(6+ chars)";
     }
-    $err.textContent = "";
-    $fix.innerHTML = "";
+    $err.textContent = ""; $fix.innerHTML = "";
     $("#forgotLink").classList.toggle("hide", mode !== "login");
   }
+  $$("#modeSeg .subtab").forEach(b => { b.onclick = () => setMode(b.dataset.mode); });
 
-  $$("#modeSeg .seg-btn").forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
+  // turn a dead end into one click, keeping what was typed
+  function offerFix(label, m) {
+    $fix.innerHTML = "";
+    const b = el("button", { class: "btn btn-secondary" }, label);
+    b.onclick = () => { setMode(m); submitAuth(); };
+    $fix.append(b);
+  }
 
-  // ---- forgot password ----
+  async function submitAuth() {
+    $err.textContent = ""; $fix.innerHTML = "";
+    const email = $email.value.trim(), password = $pw.value;
+    if (!email || !password) { $err.textContent = "ENTER EMAIL AND PASSWORD"; return; }
+    if (mode === "signup" && password.length < 6) {
+      $err.textContent = "PASSWORD NEEDS 6+ CHARACTERS"; return;
+    }
+    $btn.disabled = true;
+    const was = $btn.textContent;
+    $btn.textContent = mode === "login" ? "Signing in…" : "Creating…";
+    try {
+      const data = await api(mode === "login" ? "/api/login" : "/api/signup", "POST", { email, password });
+      Auth.set(data.token, data.email);
+      localStorage.setItem("qz_last_email", data.email || email);
+      location.href = "/host.html";
+    } catch (e) {
+      $err.textContent = e.message;
+      $btn.disabled = false; $btn.textContent = was;
+      if (/no account/i.test(e.message)) offerFix("Create account for " + email, "signup");
+      else if (/already exists/i.test(e.message)) offerFix("Sign in as " + email, "login");
+    }
+  }
+  $btn.onclick = submitAuth;
+  $pw.addEventListener("keydown", e => { if (e.key === "Enter") submitAuth(); });
+  $email.addEventListener("keydown", e => { if (e.key === "Enter") submitAuth(); });
+
+  /* ---------- forgot password ---------- */
   function showForgot(on) {
-    $("#authCard").classList.toggle("hide", on);
-    $("#forgotCard").classList.toggle("hide", !on);
+    $("#authBlock").classList.toggle("hide", on);
+    $("#forgotBlock").classList.toggle("hide", !on);
     if (on) {
       $("#fgEmail").value = $email.value.trim() || lastEmail;
       $("#fgErr").textContent = ""; $("#fgDone").innerHTML = "";
-      $("#fgBtn").disabled = false; $("#fgBtn").textContent = "Send reset link";
+      $("#fgBtn").disabled = false; $("#fgBtn").textContent = "Send Reset Link";
       $("#fgEmail").focus();
     }
   }
@@ -123,69 +461,50 @@
   async function sendReset() {
     const email = $("#fgEmail").value.trim();
     $("#fgErr").textContent = "";
-    if (!email || !email.includes("@")) { $("#fgErr").textContent = "Enter the email you signed up with."; return; }
+    if (!email || !email.includes("@")) { $("#fgErr").textContent = "ENTER THE EMAIL YOU SIGNED UP WITH"; return; }
     $("#fgBtn").disabled = true; $("#fgBtn").textContent = "Sending…";
     try {
       const r = await api("/api/forgot", "POST", { email });
       $("#fgDone").innerHTML = "";
-      // Deliberately the same message whether or not the address has an account.
-      $("#fgDone").append(el("div", { class: "banner good" },
-        "If " + email + " has an account, a reset link is on its way."));
+      // same answer whether or not the address has an account
+      $("#fgDone").append(el("div", { class: "good-box" },
+        "▶ IF " + email.toUpperCase() + " HAS AN ACCOUNT, A RESET LINK IS ON ITS WAY."));
       if (!r.configured) {
-        $("#fgDone").append(el("p", { class: "muted tiny", style: "margin-top:10px;" },
+        $("#fgDone").append(el("div", { class: "note" },
           "Email isn't configured on this server yet, so the link was written to the server log instead. See the README to set SMTP."));
       }
       $("#fgBtn").textContent = "Sent ✓";
     } catch (e) {
       $("#fgErr").textContent = e.message;
-      $("#fgBtn").disabled = false; $("#fgBtn").textContent = "Send reset link";
+      $("#fgBtn").disabled = false; $("#fgBtn").textContent = "Send Reset Link";
     }
   }
   $("#fgBtn").onclick = sendReset;
-  $("#fgEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") sendReset(); });
+  $("#fgEmail").addEventListener("keydown", e => { if (e.key === "Enter") sendReset(); });
 
-  // Turn a dead-end error into a one-click recovery, keeping what was typed.
-  function offerFix(label, m) {
-    $fix.innerHTML = "";
-    const b = el("button", { class: "btn block", style: "margin-bottom:4px;" }, label);
-    b.onclick = () => { setMode(m); submit(); };
-    $fix.append(b);
-  }
-
-  async function submit() {
-    $err.textContent = "";
-    $fix.innerHTML = "";
-    const email = $email.value.trim(), password = $pw.value;
-    if (!email || !password) { $err.textContent = "Enter your email and password."; return; }
-    if (mode === "signup" && password.length < 6) {
-      $err.textContent = "Password needs at least 6 characters.";
-      return;
-    }
-    $btn.disabled = true;
-    try {
-      const path = mode === "login" ? "/api/login" : "/api/signup";
-      const data = await api(path, "POST", { email, password });
-      Auth.set(data.token, data.email);
-      localStorage.setItem("qz_last_email", data.email || email);
-      location.href = "/host.html";
-    } catch (e) {
-      $err.textContent = e.message;
-      $btn.disabled = false;
-      if (/no account/i.test(e.message)) offerFix("Create an account for " + email + " →", "signup");
-      else if (/already exists/i.test(e.message)) offerFix("Sign in as " + email + " instead →", "login");
-    }
-  }
-  $btn.onclick = submit;
-  $pw.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-
+  /* ---------- join a game ---------- */
   function join() {
     const code = $("#joinCode").value.trim().toUpperCase();
-    if (code) location.href = "/play.html?code=" + encodeURIComponent(code);
+    if (!code) { $("#joinErr").textContent = "ENTER THE ROOM CODE"; return; }
+    location.href = "/play.html?code=" + encodeURIComponent(code);
   }
   $("#joinBtn").onclick = join;
-  $("#joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+  $("#joinCode").addEventListener("keydown", e => { if (e.key === "Enter") join(); });
+  $("#displayBtn").onclick = () => { location.href = "/display.html"; };
 
-  render();
+  /* ---------- subtle parallax (pointer only, skipped for reduced motion) ---------- */
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches && matchMedia("(pointer: fine)").matches) {
+    const cab = $(".cabinet");
+    document.addEventListener("mousemove", (e) => {
+      const x = (e.clientX - innerWidth / 2) * .01, y = (e.clientY - innerHeight / 2) * .01;
+      cab.style.transform = `perspective(1000px) rotateX(${y}deg) rotateY(${x}deg)`;
+    });
+    document.addEventListener("mouseleave", () => { cab.style.transform = ""; });
+  }
+
+  // land on HOST if we already know them, otherwise PLAY (most visitors are players)
+  showTab(lastEmail ? "host" : "play");
+  renderMode();
 </script>
 </body>
 </html>
