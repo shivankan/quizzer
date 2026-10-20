@@ -39,6 +39,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     host_id    INTEGER NOT NULL,
     created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS resets (
+    token_hash TEXT PRIMARY KEY,
+    host_id    INTEGER NOT NULL,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    used       INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS quizzes (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     host_id    INTEGER NOT NULL,
@@ -122,6 +129,67 @@ def host_for_token(token):
 def host_email(host_id):
     row = _conn().execute("SELECT email FROM hosts WHERE id=?", (host_id,)).fetchone()
     return row["email"] if row else None
+
+
+def host_id_by_email(email):
+    row = _conn().execute(
+        "SELECT id FROM hosts WHERE email=?", ((email or "").strip().lower(),)
+    ).fetchone()
+    return row["id"] if row else None
+
+
+# ---------- password reset ----------
+
+RESET_TTL = 30 * 60  # seconds
+
+
+def _token_hash(token):
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def create_reset(host_id):
+    """Issue a single-use, expiring reset token. Only its hash is stored, so a
+    database leak can't be turned into account takeover."""
+    token = secrets.token_urlsafe(32)
+    now = time.time()
+    c = _conn()
+    # one live token per host — issuing a new one invalidates older ones
+    c.execute("DELETE FROM resets WHERE host_id=?", (host_id,))
+    c.execute(
+        "INSERT INTO resets(token_hash, host_id, created_at, expires_at) VALUES (?,?,?,?)",
+        (_token_hash(token), host_id, now, now + RESET_TTL),
+    )
+    c.commit()
+    return token
+
+
+def peek_reset(token):
+    """Return host_id if the token is valid and unused, else None."""
+    row = _conn().execute(
+        "SELECT host_id, expires_at, used FROM resets WHERE token_hash=?",
+        (_token_hash(token or ""),),
+    ).fetchone()
+    if not row or row["used"] or row["expires_at"] < time.time():
+        return None
+    return row["host_id"]
+
+
+def consume_reset(token, new_password):
+    """Validate the token, set the new password, burn the token, and sign out
+    every existing session for that host."""
+    host_id = peek_reset(token)
+    if host_id is None:
+        return None, "That reset link is invalid or has expired."
+    if not new_password or len(new_password) < 6:
+        return None, "Password needs at least 6 characters."
+    salt = secrets.token_hex(16)
+    c = _conn()
+    c.execute("UPDATE hosts SET pw_hash=?, pw_salt=? WHERE id=?",
+              (_hash(new_password, salt), salt, host_id))
+    c.execute("DELETE FROM resets WHERE host_id=?", (host_id,))
+    c.execute("DELETE FROM sessions WHERE host_id=?", (host_id,))  # log out everywhere
+    c.commit()
+    return _new_session(host_id), None
 
 
 # ---------- quizzes ----------

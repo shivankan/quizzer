@@ -5,6 +5,7 @@ Simulates a host + two teams playing a 3-question quiz (buzzer, freetext, select
 and asserts the scoring rules from the PRD.
 """
 import socket
+import sys
 import struct
 import base64
 import hashlib
@@ -12,6 +13,9 @@ import os
 import json
 import time
 import urllib.request
+
+# let the test import the app package when run as `python3 tests/test_ws.py`
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 HOST, PORT = "127.0.0.1", int(os.environ.get("QUIZZER_PORT", "8000"))
 BASE = f"http://{HOST}:{PORT}"
@@ -262,6 +266,48 @@ def main():
     check(latest(msgs, "presence_alert")["state"] == "offline", "host alerted when a team drops")
     lk = latest(msgs, "locks")
     check(lk and lk["total"] == 1, "lock total follows the connected-team count")
+
+    # ===== password reset =====
+    print("\nPassword reset:")
+    import app.db as _db
+    remail = f"reset_{int(time.time())}@t.com"
+    rtok = http_json("/api/signup", "POST", {"email": remail, "password": "original1"})["token"]
+    check(http_json("/api/quizzes", token=rtok) is not None, "session valid before reset")
+
+    r1 = http_json("/api/forgot", "POST", {"email": remail})
+    r2 = http_json("/api/forgot", "POST", {"email": "definitely-nobody@nowhere.test"})
+    check(r1 == r2, "forgot gives an identical answer for known and unknown emails")
+
+    hid = _db.host_id_by_email(remail)
+    raw = _db.create_reset(hid)
+    check(_db.peek_reset(raw) == hid, "issued token validates")
+    check(_db.peek_reset("bogus-token") is None, "garbage token rejected")
+
+    try:
+        http_json("/api/reset", "POST", {"token": raw, "password": "abc"})
+        check(False, "short password rejected on reset")
+    except Exception:
+        check(True, "short password rejected on reset")
+
+    newsess = http_json("/api/reset", "POST", {"token": raw, "password": "brandnew9"})["token"]
+    check(bool(newsess), "reset returns a fresh session")
+    try:
+        http_json("/api/reset", "POST", {"token": raw, "password": "again123"})
+        check(False, "token is single-use")
+    except Exception:
+        check(True, "token is single-use")
+    try:
+        http_json("/api/login", "POST", {"email": remail, "password": "original1"})
+        check(False, "old password no longer works")
+    except Exception:
+        check(True, "old password no longer works")
+    check(bool(http_json("/api/login", "POST", {"email": remail, "password": "brandnew9"})["token"]),
+          "new password works")
+    try:
+        http_json("/api/quizzes", token=rtok)
+        check(False, "pre-reset session revoked")
+    except Exception:
+        check(True, "pre-reset session revoked")
 
     print("\n" + ("ALL CHECKS PASSED ✅" if not FAILS else f"FAILED: {FAILS}"))
     return 1 if FAILS else 0

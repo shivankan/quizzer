@@ -12,8 +12,10 @@ import json
 import mimetypes
 import os
 import sys
+import time
 
 from app import db
+from app import mailer
 from app.game import MANAGER
 from app import protocol as P
 
@@ -283,6 +285,10 @@ def serve_static(path):
     return text_response(data, ctype=ctype)
 
 
+# email -> last reset request time, so one address can't be mail-bombed
+_RESET_THROTTLE = {}
+
+
 def require_host(req):
     return db.host_for_token(req.bearer())
 
@@ -353,6 +359,37 @@ def handle_api(req):
         if err:
             return json_response({"error": err}, "401 Unauthorized")
         return json_response({"token": token, "email": (d.get("email") or "").strip().lower()})
+
+    if path == "/api/forgot" and method == "POST":
+        email = (req.json().get("email") or "").strip().lower()
+        # Always answer the same way: never confirm whether an address has an
+        # account. Rate-limited per address so the endpoint can't be used to
+        # spam someone's inbox.
+        generic = {"ok": True, "configured": mailer.is_configured()}
+        if not email or "@" not in email:
+            return json_response({"error": "Enter the email you signed up with."}, "400 Bad Request")
+        now = time.time()
+        last = _RESET_THROTTLE.get(email, 0)
+        if now - last < 60:
+            return json_response(generic)
+        _RESET_THROTTLE[email] = now
+        hid = db.host_id_by_email(email)
+        if hid is not None:
+            token = db.create_reset(hid)
+            link = f"{mailer.base_url(req.header('host'))}/reset.html?token={token}"
+            mailer.send_reset(email, link)
+        return json_response(generic)
+
+    if path == "/api/reset/check" and method == "POST":
+        ok = db.peek_reset(req.json().get("token")) is not None
+        return json_response({"valid": ok})
+
+    if path == "/api/reset" and method == "POST":
+        d = req.json()
+        token, err = db.consume_reset(d.get("token"), d.get("password") or "")
+        if err:
+            return json_response({"error": err}, "400 Bad Request")
+        return json_response({"token": token})
 
     # everything below requires auth
     host_id = require_host(req)

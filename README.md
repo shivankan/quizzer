@@ -51,6 +51,33 @@ Set a different port with `QUIZZER_PORT=9000 python3 server.py`.
 - Per-round award summary, **editable per team**, before finalizing
 - Live scoreboard on the shared display and on demand for players
 
+## Password reset (email)
+
+Hosts who forget a password use **Forgot password?** on the sign-in card. The server
+issues a single-use token that expires in 30 minutes, emails a link, and the link
+opens `/reset.html` to choose a new password. Resetting signs the host out everywhere.
+
+Email goes out over plain SMTP (stdlib `smtplib`). Configure it with environment
+variables — on Render, add these under *Environment*:
+
+| Variable | Example | Notes |
+|---|---|---|
+| `QUIZZER_SMTP_HOST` | `smtp.gmail.com` | |
+| `QUIZZER_SMTP_PORT` | `587` | `465` switches to implicit TLS |
+| `QUIZZER_SMTP_USER` | `you@gmail.com` | |
+| `QUIZZER_SMTP_PASS` | *app password* | Gmail needs an **App Password**, not your login |
+| `QUIZZER_MAIL_FROM` | `Quizzer <you@gmail.com>` | optional, defaults to `SMTP_USER` |
+| `QUIZZER_BASE_URL` | `https://your-app.onrender.com` | so links point at the public site, not localhost |
+
+**If SMTP isn't configured the flow still works** — the reset link is written to the
+server log instead of being emailed (visible in Render's *Logs* tab), and the UI says
+so plainly rather than pretending a mail was sent.
+
+Security properties, all covered by `tests/test_ws.py`: tokens are stored only as
+SHA-256 hashes, are single-use, expire after 30 minutes, revoke existing sessions on
+use, are rate-limited to one per address per minute, and `/api/forgot` returns an
+identical response whether or not the address has an account (no email enumeration).
+
 ## Architecture
 
 | Piece | File |

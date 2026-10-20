@@ -39,6 +39,23 @@
       <div class="err" id="authErr"></div>
       <div id="authFix"></div>
       <button class="btn primary block lg" id="authBtn">Create account</button>
+      <button class="btn ghost sm hide" id="forgotLink" style="margin-top:-4px;">Forgot password?</button>
+    </div>
+  </div>
+
+  <!-- forgot password -->
+  <div class="card hide" id="forgotCard">
+    <h2>Reset your password</h2>
+    <p class="muted tiny">We'll email you a link to choose a new one. It works once and expires in 30 minutes.</p>
+    <div class="stack" style="margin-top:12px;">
+      <div>
+        <label>Email</label>
+        <input id="fgEmail" type="email" autocomplete="email" placeholder="you@example.com">
+      </div>
+      <div class="err" id="fgErr"></div>
+      <div id="fgDone"></div>
+      <button class="btn primary block" id="fgBtn">Send reset link</button>
+      <button class="btn ghost sm" id="fgBack">← Back to sign in</button>
     </div>
   </div>
 
@@ -84,9 +101,48 @@
     }
     $err.textContent = "";
     $fix.innerHTML = "";
+    $("#forgotLink").classList.toggle("hide", mode !== "login");
   }
 
   $$("#modeSeg .seg-btn").forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
+
+  // ---- forgot password ----
+  function showForgot(on) {
+    $("#authCard").classList.toggle("hide", on);
+    $("#forgotCard").classList.toggle("hide", !on);
+    if (on) {
+      $("#fgEmail").value = $email.value.trim() || lastEmail;
+      $("#fgErr").textContent = ""; $("#fgDone").innerHTML = "";
+      $("#fgBtn").disabled = false; $("#fgBtn").textContent = "Send reset link";
+      $("#fgEmail").focus();
+    }
+  }
+  $("#forgotLink").onclick = () => showForgot(true);
+  $("#fgBack").onclick = () => showForgot(false);
+
+  async function sendReset() {
+    const email = $("#fgEmail").value.trim();
+    $("#fgErr").textContent = "";
+    if (!email || !email.includes("@")) { $("#fgErr").textContent = "Enter the email you signed up with."; return; }
+    $("#fgBtn").disabled = true; $("#fgBtn").textContent = "Sending…";
+    try {
+      const r = await api("/api/forgot", "POST", { email });
+      $("#fgDone").innerHTML = "";
+      // Deliberately the same message whether or not the address has an account.
+      $("#fgDone").append(el("div", { class: "banner good" },
+        "If " + email + " has an account, a reset link is on its way."));
+      if (!r.configured) {
+        $("#fgDone").append(el("p", { class: "muted tiny", style: "margin-top:10px;" },
+          "Email isn't configured on this server yet, so the link was written to the server log instead. See the README to set SMTP."));
+      }
+      $("#fgBtn").textContent = "Sent ✓";
+    } catch (e) {
+      $("#fgErr").textContent = e.message;
+      $("#fgBtn").disabled = false; $("#fgBtn").textContent = "Send reset link";
+    }
+  }
+  $("#fgBtn").onclick = sendReset;
+  $("#fgEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") sendReset(); });
 
   // Turn a dead-end error into a one-click recovery, keeping what was typed.
   function offerFix(label, m) {

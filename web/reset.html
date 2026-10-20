@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quizzer — Reset password</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> <span class="name">QUIZZER</span></div>
+  </div>
+
+  <div class="card" id="formCard">
+    <h2>Choose a new password</h2>
+    <p class="muted tiny" id="sub">Checking your link…</p>
+    <div class="stack hide" id="fields" style="margin-top:12px;">
+      <div>
+        <label>New password <span class="tiny muted">(6+ characters)</span></label>
+        <input id="pw1" type="password" autocomplete="new-password" placeholder="••••••••">
+      </div>
+      <div>
+        <label>Confirm new password</label>
+        <input id="pw2" type="password" autocomplete="new-password" placeholder="••••••••">
+      </div>
+      <div class="err" id="err"></div>
+      <button class="btn primary block lg" id="saveBtn">Set new password</button>
+    </div>
+    <div class="hide" id="dead" style="margin-top:14px;">
+      <div class="banner bad">This reset link is invalid or has expired.</div>
+      <p class="muted tiny" style="margin-top:12px;">Links work once and last 30 minutes.</p>
+      <a class="btn block" href="/" style="margin-top:8px;">← Back to sign in</a>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+  const token = new URLSearchParams(location.search).get("token") || "";
+  const $err = $("#err"), $btn = $("#saveBtn");
+
+  (async function check() {
+    if (!token) return dead();
+    try {
+      const r = await api("/api/reset/check", "POST", { token });
+      if (!r.valid) return dead();
+      $("#sub").textContent = "Pick something you'll remember — this signs you in afterwards.";
+      $("#fields").classList.remove("hide");
+      $("#pw1").focus();
+    } catch (e) { dead(); }
+  })();
+
+  function dead() {
+    $("#sub").classList.add("hide");
+    $("#fields").classList.add("hide");
+    $("#dead").classList.remove("hide");
+  }
+
+  async function save() {
+    $err.textContent = "";
+    const a = $("#pw1").value, b = $("#pw2").value;
+    if (a.length < 6) return ($err.textContent = "Password needs at least 6 characters.");
+    if (a !== b) return ($err.textContent = "Those two passwords don't match.");
+    $btn.disabled = true;
+    try {
+      const r = await api("/api/reset", "POST", { token, password: a });
+      Auth.set(r.token);
+      location.href = "/host.html";
+    } catch (e) {
+      $err.textContent = e.message;
+      $btn.disabled = false;
+    }
+  }
+  $btn.onclick = save;
+  $("#pw2").addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+</script>
+</body>
+</html>
