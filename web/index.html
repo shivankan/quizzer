@@ -6,12 +6,12 @@
 <title>Quizzer — live quiz platform</title>
 <style>
   :root {
-    --neon-purple: #ff006e;
-    --neon-cyan: #00f5ff;
-    --neon-green: #39ff14;
-    --neon-yellow: #ffff00;
-    --neon-pink: #ff10f0;
-    --arcade-gold: #ffd700;
+    --neon-purple: #d6477f;
+    --neon-cyan: #5cc6d4;
+    --neon-green: #6ed45b;
+    --neon-yellow: #e3dc66;
+    --neon-pink: #cf5fc4;
+    --arcade-gold: #ddbc4f;
     --dark-bg: #0a0e27;
     font-family: 'Courier New', monospace;
     color-scheme: dark;
@@ -139,26 +139,26 @@
   .cabinet {
     width: 100%; max-width: 440px; padding: 1.6rem 1.2rem;
     position: relative; z-index: 10;
-    background: rgba(10,14,39,.86);
+    background: rgba(10,14,39,.80);          /* 20% translucent */
     border: 3px solid var(--neon-cyan);
-    box-shadow: 0 0 40px rgba(0,245,255,.5), inset 0 0 30px rgba(255,0,110,.1);
+    box-shadow: 0 0 26px rgba(92,198,212,.26), inset 0 0 26px rgba(214,71,127,.07);
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     transition: transform .2s ease;
   }
   .status {
     display: flex; justify-content: space-between; gap: 8px;
     font-size: .7rem; color: var(--neon-green); margin-bottom: .8rem;
-    text-shadow: 0 0 10px var(--neon-green); letter-spacing: .1em;
+    text-shadow: 0 0 6px rgba(110,212,91,.4); letter-spacing: .1em;
   }
   .logo {
     text-align: center; margin-bottom: 1.2rem; font-size: 2rem; font-weight: 700;
     letter-spacing: .1em; color: var(--neon-yellow);
-    text-shadow: 0 0 20px var(--neon-yellow), 0 0 40px var(--neon-pink);
+    text-shadow: 0 0 12px rgba(227,220,102,.55), 0 0 24px rgba(207,95,196,.35);
     font-family: 'Arial Black', 'Arial Bold', sans-serif;
   }
   .logo-dot {
     display: inline-block; width: 12px; height: 12px; background: var(--neon-pink);
-    margin-right: .5rem; vertical-align: middle; box-shadow: 0 0 20px var(--neon-pink);
+    margin-right: .5rem; vertical-align: middle; box-shadow: 0 0 12px rgba(207,95,196,.6);
     animation: pulseHard 1s ease-in-out infinite;
   }
 
@@ -169,10 +169,10 @@
     text-transform: uppercase; letter-spacing: .05em; transition: all .2s ease;
     position: relative; overflow: hidden;
   }
-  .tab:hover:not(.active) { border-color: var(--neon-yellow); box-shadow: 0 0 15px rgba(255,255,0,.4); }
+  .tab:hover:not(.active) { border-color: var(--neon-yellow); box-shadow: 0 0 10px rgba(227,220,102,.25); }
   .tab.active {
     background: var(--neon-pink); color: #000; border-color: var(--neon-yellow);
-    box-shadow: 0 0 30px rgba(255,0,110,.8), inset 0 0 20px rgba(255,0,110,.3);
+    box-shadow: 0 0 18px rgba(207,95,196,.45), inset 0 0 14px rgba(207,95,196,.18);
   }
 
   .panel { display: none; }
@@ -180,7 +180,7 @@
 
   .section-title {
     font: 900 .95rem 'Arial Black', sans-serif; margin-bottom: .7rem; color: var(--neon-yellow);
-    text-transform: uppercase; letter-spacing: .05em; text-shadow: 0 0 15px rgba(255,255,0,.5);
+    text-transform: uppercase; letter-spacing: .05em; text-shadow: 0 0 9px rgba(227,220,102,.35);
   }
 
   /* sub-toggle: create vs sign in */
@@ -190,24 +190,24 @@
     color: var(--neon-green); font: 700 .72rem 'Courier New', monospace; cursor: pointer;
     text-transform: uppercase; letter-spacing: .04em; transition: all .18s ease;
   }
-  .subtab.on { background: var(--neon-green); color: #001b00; box-shadow: 0 0 22px rgba(57,255,20,.7); }
+  .subtab.on { background: var(--neon-green); color: #001b00; box-shadow: 0 0 14px rgba(110,212,91,.4); }
 
   .form-group { margin-bottom: .85rem; }
   label {
     display: block; font: 700 .72rem 'Courier New', monospace; margin-bottom: .3rem;
     color: var(--neon-green); text-transform: uppercase; letter-spacing: .05em;
-    text-shadow: 0 0 10px var(--neon-green);
+    text-shadow: 0 0 6px rgba(110,212,91,.45);
   }
   label .hint { color: rgba(57,255,20,.6); text-shadow: none; }
   input {
     width: 100%; padding: .65rem .75rem; background: rgba(0,0,0,.7);
     border: 2px solid var(--neon-cyan); color: var(--neon-yellow);
     font: .9rem 'Courier New', monospace; transition: all .2s ease;
-    box-shadow: 0 0 15px rgba(0,245,255,.3);
+    box-shadow: 0 0 10px rgba(92,198,212,.16);
   }
   input:focus {
     outline: none; border-color: var(--neon-pink); background: rgba(255,0,110,.1);
-    box-shadow: 0 0 30px rgba(255,0,110,.6); text-shadow: 0 0 10px rgba(255,255,0,.5);
+    box-shadow: 0 0 16px rgba(207,95,196,.35); text-shadow: none;
   }
   input::placeholder { color: rgba(0,245,255,.45); }
 
@@ -215,17 +215,17 @@
     width: 100%; padding: .8rem 1rem; border: 2px solid var(--neon-yellow);
     background: var(--neon-pink); color: #000; cursor: pointer;
     font: 900 .85rem 'Arial Black', sans-serif; text-transform: uppercase; letter-spacing: .05em;
-    box-shadow: 0 0 20px rgba(255,0,110,.8); transition: all .2s ease; margin-bottom: .5rem;
+    box-shadow: 0 0 14px rgba(207,95,196,.4); transition: all .2s ease; margin-bottom: .5rem;
   }
   .btn:hover:not(:disabled) { transform: scale(1.03); filter: brightness(1.25);
-    box-shadow: 0 0 40px rgba(255,0,110,1), 0 0 20px rgba(255,255,0,.8); }
+    box-shadow: 0 0 22px rgba(207,95,196,.6), 0 0 12px rgba(227,220,102,.4); }
   .btn:active:not(:disabled) { transform: scale(.98); }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
   .btn-secondary {
     background: transparent; border-color: var(--neon-cyan); color: var(--neon-cyan);
-    box-shadow: 0 0 15px rgba(0,245,255,.5);
+    box-shadow: 0 0 10px rgba(92,198,212,.3);
   }
-  .btn-secondary:hover:not(:disabled) { background: rgba(0,245,255,.18); box-shadow: 0 0 30px rgba(0,245,255,.8); }
+  .btn-secondary:hover:not(:disabled) { background: rgba(92,198,212,.14); box-shadow: 0 0 18px rgba(92,198,212,.45); }
   .btn-link {
     width: 100%; background: none; border: none; cursor: pointer; padding: .35rem;
     color: var(--neon-cyan); font: 700 .72rem 'Courier New', monospace;
@@ -239,13 +239,13 @@
   .info-box {
     background: rgba(57,255,20,.1); border: 2px dashed var(--neon-green);
     padding: .75rem; font: .74rem 'Courier New', monospace; color: var(--neon-green);
-    margin-top: .9rem; text-shadow: 0 0 10px var(--neon-green); line-height: 1.5;
+    margin-top: .9rem; text-shadow: none; line-height: 1.5;
   }
   .info-box a { color: var(--neon-yellow); }
 
   .err {
     min-height: 1rem; color: #ff5d7a; font: 700 .74rem 'Courier New', monospace;
-    text-shadow: 0 0 10px rgba(255,0,60,.8); margin-bottom: .4rem;
+    text-shadow: 0 0 7px rgba(255,93,122,.45); margin-bottom: .4rem;
   }
   .good-box {
     background: rgba(57,255,20,.12); border: 2px solid var(--neon-green);
@@ -255,20 +255,10 @@
   .note { font: .7rem 'Courier New', monospace; color: rgba(0,245,255,.75); margin-top: .5rem; line-height: 1.5; }
   .hide { display: none !important; }
 
-  /* scroll cue pinned to the bottom of screen one */
-  .scroll-cue {
-    position: absolute; bottom: 14px; left: 0; right: 0;
-    text-align: center; color: var(--neon-cyan);
-    font: 700 .68rem 'Courier New', monospace; letter-spacing: .14em;
-    text-transform: uppercase; opacity: .8; pointer-events: none;
-    animation: cueBob 1.8s ease-in-out infinite; text-shadow: 0 0 12px var(--neon-cyan);
-  }
-  .scroll-cue .chev { display: block; font-size: 1.1rem; margin-top: 2px; }
-
   /* ---- level two: just the code, everything dialled down ---- */
   /* The scene keeps running behind it, but muted, so the code is the only
      thing competing for attention -- and high contrast scans better. */
-  #screen2 { filter: saturate(.35) brightness(.72); }
+  #screen2 { filter: saturate(.5) brightness(.8); }
   #screen2 .qr-frame {
     display: inline-block; padding: 16px; background: #fff;
     border: 2px solid rgba(255,255,255,.25);
@@ -276,8 +266,6 @@
   }
   #screen2 .qr-frame canvas { display: block; image-rendering: pixelated; max-width: 100%; height: auto; }
 
-  @keyframes cueBob { 0%,100% { transform: translateY(0); opacity: .55; }
-                      50% { transform: translateY(6px); opacity: 1; } }
 
   @keyframes arcadeGlow { 0%,100% { background-position: 0% 50%; filter: brightness(1); }
                           50% { background-position: 100% 50%; filter: brightness(1.2); } }
@@ -400,7 +388,6 @@
     <button class="btn btn-secondary" id="displayBtn" type="button">Open Shared Display</button>
   </section>
 </div>
-  <div class="scroll-cue">Scroll for 2P mode<span class="chev">▼</span></div>
 </div>
 
 <div class="screen" id="screen2">
