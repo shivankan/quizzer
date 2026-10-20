@@ -33,10 +33,23 @@ const Auth = {
 async function api(path, method = "GET", body = null) {
   const headers = { "Content-Type": "application/json" };
   if (Auth.token) headers["Authorization"] = "Bearer " + Auth.token;
-  const res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : null });
+  let res;
+  try {
+    res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : null });
+  } catch (e) {
+    // A dead/restarting server reads as a generic TypeError; say what it is so
+    // it isn't mistaken for a rejected password.
+    throw new Error("Can't reach the Quizzer server — it may have restarted. "
+      + "Wait a moment and try again (your account is safe).");
+  }
   let data = {};
   try { data = await res.json(); } catch (e) {}
-  if (!res.ok) throw new Error(data.error || ("Request failed (" + res.status + ")"));
+  if (!res.ok) {
+    if (res.status >= 500) {
+      throw new Error("The server hit an error (" + res.status + "). Try again in a moment.");
+    }
+    throw new Error(data.error || ("Request failed (" + res.status + ")"));
+  }
   return data;
 }
 
