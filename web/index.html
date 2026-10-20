@@ -22,10 +22,11 @@
 
   <!-- Host auth -->
   <div class="card" id="authCard">
-    <div class="row spread" style="margin-bottom:14px;">
-      <h2 style="margin:0;">Host sign in</h2>
-      <button class="btn ghost sm" id="toggleMode">Need an account?</button>
+    <div class="seg" id="modeSeg">
+      <button class="seg-btn" data-mode="signup">Create account</button>
+      <button class="seg-btn" data-mode="login">Sign in</button>
     </div>
+    <p class="muted tiny center" id="modeHint" style="margin:0 0 14px;"></p>
     <div class="stack">
       <div>
         <label>Email</label>
@@ -36,7 +37,8 @@
         <input id="password" type="password" autocomplete="current-password" placeholder="••••••••">
       </div>
       <div class="err" id="authErr"></div>
-      <button class="btn primary block" id="authBtn">Sign in</button>
+      <div id="authFix"></div>
+      <button class="btn primary block lg" id="authBtn">Create account</button>
     </div>
   </div>
 
@@ -57,41 +59,64 @@
   // already logged in? go to dashboard
   if (Auth.token) location.href = "/host.html";
 
-  let mode = "login";
+  // Default to signup: accounts live in this app's own database, so a first-time
+  // host has nothing to sign in with. Returning hosts get their email remembered.
+  const lastEmail = localStorage.getItem("qz_last_email") || "";
+  let mode = lastEmail ? "login" : "signup";
   const $email = $("#email"), $pw = $("#password"), $err = $("#authErr");
-  const $btn = $("#authBtn"), $toggle = $("#toggleMode"), $hint = $("#pwHint");
+  const $btn = $("#authBtn"), $hint = $("#pwHint"), $fix = $("#authFix");
+  if (lastEmail) $email.value = lastEmail;
+
+  function setMode(m) { mode = m; render(); }
 
   function render() {
+    $$("#modeSeg .seg-btn").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
     if (mode === "login") {
-      $("#authCard h2").textContent = "Host sign in";
       $btn.textContent = "Sign in";
-      $toggle.textContent = "Need an account?";
       $pw.autocomplete = "current-password";
       $hint.textContent = "";
+      $("#modeHint").textContent = "Welcome back — sign in to your quizzes.";
     } else {
-      $("#authCard h2").textContent = "Create host account";
       $btn.textContent = "Create account";
-      $toggle.textContent = "Have an account?";
       $pw.autocomplete = "new-password";
       $hint.textContent = "(6+ characters)";
+      $("#modeHint").textContent = "New here? Hosting a quiz needs an account — it takes a second.";
     }
     $err.textContent = "";
+    $fix.innerHTML = "";
   }
-  $toggle.onclick = () => { mode = mode === "login" ? "signup" : "login"; render(); };
+
+  $$("#modeSeg .seg-btn").forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
+
+  // Turn a dead-end error into a one-click recovery, keeping what was typed.
+  function offerFix(label, m) {
+    $fix.innerHTML = "";
+    const b = el("button", { class: "btn block", style: "margin-bottom:4px;" }, label);
+    b.onclick = () => { setMode(m); submit(); };
+    $fix.append(b);
+  }
 
   async function submit() {
     $err.textContent = "";
+    $fix.innerHTML = "";
     const email = $email.value.trim(), password = $pw.value;
     if (!email || !password) { $err.textContent = "Enter your email and password."; return; }
+    if (mode === "signup" && password.length < 6) {
+      $err.textContent = "Password needs at least 6 characters.";
+      return;
+    }
     $btn.disabled = true;
     try {
       const path = mode === "login" ? "/api/login" : "/api/signup";
       const data = await api(path, "POST", { email, password });
       Auth.set(data.token, data.email);
+      localStorage.setItem("qz_last_email", data.email || email);
       location.href = "/host.html";
     } catch (e) {
       $err.textContent = e.message;
       $btn.disabled = false;
+      if (/no account/i.test(e.message)) offerFix("Create an account for " + email + " →", "signup");
+      else if (/already exists/i.test(e.message)) offerFix("Sign in as " + email + " instead →", "login");
     }
   }
   $btn.onclick = submit;
