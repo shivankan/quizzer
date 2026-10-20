@@ -29,6 +29,8 @@ async function connect() {
     .on("phase", (m) => { D.phase = m.phase; if (m.q) D.q = m.q; render(); })
     .on("timer", (m) => D.timer.update(m))
     .on("buzz", (m) => { D.buzz = m; if (D.phase === "active") render(); })
+    .on("locks", (m) => { D.locks = m; if (D.phase === "active") render(); })
+    .on("presence_alert", (m) => presenceAlert(m.name, m.state))
     .on("reveal", (m) => { D.reveal = m; })
     .on("scoreboard", (m) => { D.phase = "scoreboard"; D.scores = m.rows; render(); })
     .on("ended", (m) => { D.phase = "ended"; D.scores = m.rows; render(); })
@@ -80,6 +82,11 @@ function render() {
   }
 
   if (D.q.type === "buzzer") renderBuzz(s);
+  else if (D.locks && D.locks.total) {
+    s.append(el("div", { class: "center", style: "margin-top:22px;" },
+      el("div", { class: D.locks.all_in ? "banner good" : "banner", style: "font-size:24px; display:inline-block;" },
+        D.locks.all_in ? `✓ All ${D.locks.total} teams locked in` : `🔒 ${D.locks.count} of ${D.locks.total} teams locked in`)));
+  }
   if (D.timer) updateTimer(D.timer.remaining());
 }
 
@@ -91,8 +98,21 @@ function renderLobby(s) {
     el("div", { class: "code-hero", style: "margin:14px 0 30px;" }, D.code)));
   s.append(el("h3", { class: "center" }, D.teams.length ? D.teams.length + " team" + (D.teams.length === 1 ? "" : "s") + " in — waiting for more…" : "Waiting for teams…"));
   const chips = el("div", { class: "chips", style: "justify-content:center;" });
-  D.teams.forEach((t, i) => { const c = el("div", { class: "chip pop" }, avatar(t, 30), t.name); c.style.animationDelay = (i * 0.08) + "s"; chips.append(c); });
+  D.teams.forEach((t, i) => {
+    const c = el("div", { class: "chip pop" }, avatar(t, 30), t.name,
+      t.tested ? el("span", { class: "pill green" }, "✓") : null);
+    c.style.animationDelay = (i * 0.08) + "s";
+    chips.append(c);
+  });
   s.append(chips);
+  const tested = D.teams.filter((t) => t.tested).length;
+  if (D.teams.length && tested < D.teams.length) {
+    s.append(el("p", { class: "muted center", style: "margin-top:16px; font-size:18px;" },
+      `${tested} of ${D.teams.length} have tested their buzzer — tap TEST on your phone`));
+  } else if (D.teams.length) {
+    s.append(el("p", { class: "center", style: "margin-top:16px; font-size:18px; color:var(--green);" },
+      "✓ All buzzers tested — ready to play"));
+  }
 }
 
 function renderBuzz(s) {

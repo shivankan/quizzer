@@ -25,6 +25,7 @@ class Team:
         self.score = 0
         self.conn = None  # current participant ws connection (or None if disconnected)
         self.away = False  # device backgrounded (app switch / screen off), reported by client
+        self.buzz_tested = False  # passed the pre-quiz buzzer check
 
     @property
     def connected(self):
@@ -56,6 +57,7 @@ class Room:
         self.had_wrong = False
         self.text_answers = {}           # tid -> str
         self.select_answers = {}         # tid -> [indices]
+        self.locked_in = set()           # team ids who locked their answer this question
         self.awards = {}                 # tid -> int (provisional, editable in review)
         self.revealed = False
 
@@ -65,6 +67,11 @@ class Room:
         if 0 <= self.index < len(self.quiz["questions"]):
             return self.quiz["questions"][self.index]
         return None
+
+    @property
+    def has_buzzer(self):
+        """True if any question is a buzzer round — gates the pre-quiz buzzer check."""
+        return any(q["type"] == "buzzer" for q in self.quiz["questions"])
 
     def all_conns(self):
         conns = list(self.displays)
@@ -110,7 +117,8 @@ class Room:
             "type": "roster",
             "teams": [
                 {"id": t.id, "name": t.name, "photo": t.photo,
-                 "connected": t.connected, "away": t.away, "score": t.score}
+                 "connected": t.connected, "away": t.away, "score": t.score,
+                 "tested": t.buzz_tested, "locked": t.id in self.locked_in}
                 for t in self.teams.values()
             ],
         }
@@ -201,6 +209,8 @@ class Room:
         self._arm_timer(q["timer_seconds"])
         if q["type"] == "buzzer":
             self._broadcast_buzz()
+        else:
+            self._broadcast_locks()
         self.send_full_state(self.host_conn) if self.host_conn else None
 
     def start(self):
@@ -315,9 +325,71 @@ class Room:
         self.awards = {}
         self._enter_review()
 
+    # ---------- pre-quiz buzzer check ----------
+    def buzz_test(self, tid):
+        """Lobby-only warm-up so teams can confirm their buzzer registers."""
+        if self.phase != "lobby":
+            return
+        t = self.teams.get(tid)
+        if not t:
+            return
+        t.buzz_tested = True
+        if t.conn:
+            t.conn.send_json({"type": "buzz_test_ok"})
+        self.broadcast(self.roster_msg())
+
+    # ---------- lock-in ----------
+    def connected_count(self):
+        return sum(1 for t in self.teams.values() if t.connected)
+
+    def set_lock(self, tid, locked):
+        """Teams lock an answer in; they may unlock and re-lock while time remains."""
+        q = self.question
+        if self.phase != "active" or not q or q["type"] == "buzzer":
+            return
+        if tid not in self.teams:
+            return
+        if locked:
+            self.locked_in.add(tid)
+        else:
+            self.locked_in.discard(tid)
+        t = self.teams[tid]
+        if t.conn:
+            t.conn.send_json({"type": "lock_state", "locked": tid in self.locked_in})
+        self._broadcast_locks()
+
+    def refresh_locks(self):
+        """Re-broadcast lock totals when the connected-team count changes
+        (join / drop mid-question), so the host's "n of N" stays accurate."""
+        q = self.question
+        if self.phase == "active" and q and q["type"] != "buzzer":
+            self._broadcast_locks()
+
+    def _broadcast_locks(self):
+        total = self.connected_count()
+        n = len([t for t in self.locked_in if self.teams.get(t) and self.teams[t].connected])
+        self.broadcast({
+            "type": "locks",
+            "locked": list(self.locked_in),
+            "count": n,
+            "total": total,
+            "all_in": total > 0 and n >= total,
+        })
+        self.broadcast(self.roster_msg())
+
+    # ---------- presence alerts ----------
+    def presence_alert(self, team, state):
+        """Fun, visible callout when a team backgrounds the app or drops mid-question."""
+        if self.phase not in ("active", "review"):
+            return
+        self.broadcast({"type": "presence_alert", "name": team.name,
+                        "id": team.id, "state": state})
+
     # ---------- answer submission ----------
     def submit_text(self, tid, text):
         if self.phase == "active" and self.question and self.question["type"] == "freetext":
+            if tid in self.locked_in:
+                return  # must unlock to edit
             self.text_answers[tid] = text
             t = self.teams.get(tid)
             if t and t.conn:
@@ -325,6 +397,8 @@ class Room:
 
     def submit_select(self, tid, selection):
         q = self.question
+        if tid in self.locked_in:
+            return  # must unlock to edit
         if self.phase == "active" and q and q["type"] == "select":
             opts = q.get("options", [])
             sel = [i for i in selection if isinstance(i, int) and 0 <= i < len(opts)]
@@ -445,6 +519,7 @@ class Room:
             "index": self.index,
             "total": len(self.quiz["questions"]),
             "title": self.quiz["title"],
+            "has_buzzer": self.has_buzzer,
             "q": self.public_question() if self.phase in ("active", "review", "scoreboard") else None,
         })
         conn.send_json(self.roster_msg())
@@ -465,6 +540,13 @@ class Room:
                 "locked": list(self.locked), "closed": self.buzz_closed,
                 "had_wrong": self.had_wrong,
             })
+        q2 = self.question
+        if self.phase == "active" and q2 and q2["type"] != "buzzer":
+            total = self.connected_count()
+            n = len([t for t in self.locked_in if self.teams.get(t) and self.teams[t].connected])
+            conn.send_json({"type": "locks", "locked": list(self.locked_in),
+                            "count": n, "total": total,
+                            "all_in": total > 0 and n >= total})
         if self.phase == "scoreboard":
             conn.send_json({"type": "scoreboard", "rows": self.scoreboard_rows(), "final": False})
         if self.phase == "ended":

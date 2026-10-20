@@ -216,6 +216,53 @@ def main():
     arow = next((r for r in sbrow["rows"] if r["id"] == aid), None) if sbrow else None
     check(arow and arow["score"] == 20, "reconnected A still has score 20")
 
+    # ===== buzzer check / lock-in / presence alerts =====
+    print("\nPre-quiz buzzer check, lock-in, presence alerts:")
+    code2 = http_json("/api/rooms", "POST", {"quiz_id": qid}, token=tok)["code"]
+    h2 = WS("host2"); h2.send({"type": "host_join", "token": tok, "code": code2})
+    h2.wait_for("joined")
+    check(h2.wait_for("state").get("has_buzzer") is True, "host told the quiz has a buzzer round")
+    C = WS("C"); C.send({"type": "team_join", "code": code2, "name": "Cee"})
+    cid = C.wait_for("joined")["teamId"]
+    D = WS("D"); D.send({"type": "team_join", "code": code2, "name": "Dee"})
+    D.wait_for("joined")
+    h2.drain()
+
+    C.send({"type": "buzz_test"})
+    check(C.wait_for("buzz_test_ok") is not None, "buzzer check acks the team")
+    ros = latest(h2.drain(), "roster")
+    check(ros and [t for t in ros["teams"] if t["id"] == cid][0]["tested"] is True,
+          "host roster marks that team as tested")
+
+    # skip to the timed select question (index 2 of the e2e quiz)
+    h2.send({"type": "start"}); C.wait_for("question"); D.wait_for("question"); h2.drain()
+    h2.send({"type": "next"}); C.wait_for("question"); D.wait_for("question"); h2.drain()
+    h2.send({"type": "next"}); C.wait_for("question"); D.wait_for("question"); h2.drain()
+
+    C.send({"type": "submit_select", "selection": [0]}); C.wait_for("ack_select")
+    C.send({"type": "lock_in", "locked": True})
+    check(C.wait_for("lock_state")["locked"] is True, "team can lock in an answer")
+    lk = latest(h2.drain(), "locks")
+    check(lk and lk["count"] == 1 and lk["total"] == 2, "host sees 1 of 2 locked in")
+    C.send({"type": "submit_select", "selection": [1]}); time.sleep(0.2)
+    check(not latest(C.drain(), "ack_select"), "edits are rejected while locked")
+    C.send({"type": "lock_in", "locked": False}); C.wait_for("lock_state")
+    C.send({"type": "submit_select", "selection": [0, 2]})
+    check(C.wait_for("ack_select") is not None, "unlocking re-enables editing")
+    C.send({"type": "lock_in", "locked": True}); C.wait_for("lock_state")
+    D.send({"type": "lock_in", "locked": True}); D.wait_for("lock_state")
+    lk = latest(h2.drain(), "locks")
+    check(lk and lk["all_in"] is True, "all_in set once every connected team locks")
+
+    D.send({"type": "presence", "away": True}); time.sleep(0.2)
+    al = latest(h2.drain(), "presence_alert")
+    check(al and al["name"] == "Dee" and al["state"] == "away", "host alerted when a team leaves the app")
+    D.sock.close(); time.sleep(0.3)
+    msgs = h2.drain()
+    check(latest(msgs, "presence_alert")["state"] == "offline", "host alerted when a team drops")
+    lk = latest(msgs, "locks")
+    check(lk and lk["total"] == 1, "lock total follows the connected-team count")
+
     print("\n" + ("ALL CHECKS PASSED ✅" if not FAILS else f"FAILED: {FAILS}"))
     return 1 if FAILS else 0
 

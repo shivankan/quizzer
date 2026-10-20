@@ -274,12 +274,18 @@ function startLive(code) {
   ws.onstatus = (up) => { $("#connState").textContent = up ? "" : "reconnecting…"; };
   ws
     .on("joined", (m) => { $("#liveTitle").textContent = m.title; })
-    .on("state", (m) => { H.phase = m.phase; H.q = m.q; H.index = m.index; H.total = m.total; renderLive(); })
+    .on("state", (m) => {
+      H.phase = m.phase; H.q = m.q; H.index = m.index; H.total = m.total;
+      if (m.has_buzzer !== undefined) H.hasBuzzer = m.has_buzzer;
+      renderLive();
+    })
     .on("roster", (m) => { H.teams = m.teams; renderTeams(); if (H.phase === "lobby") renderPresent(); })
     .on("question", (m) => { H.phase = "active"; H.q = m.q; H.index = m.index; H.total = m.total; H.review = null; renderLive(); })
     .on("phase", (m) => { H.phase = m.phase; if (m.q) H.q = m.q; renderLive(); })
     .on("timer", (m) => H.timer.update(m))
     .on("buzz", (m) => { H.buzz = m; if (H.phase === "active") { renderSidePanel(); renderPresent(); } })
+    .on("locks", (m) => { H.locks = m; if (H.phase === "active") { renderSidePanel(); renderPresent(); } })
+    .on("presence_alert", (m) => { presenceAlert(m.name, m.state); flashTeamChip(m.id); })
     .on("review", (m) => { H.review = m; H.phase = "review"; renderLive(); })
     .on("scoreboard", (m) => { H.phase = "scoreboard"; H.scoreboard = m.rows; renderLive(); })
     .on("ended", (m) => { H.phase = "ended"; H.scoreboard = m.rows; renderLive(); })
@@ -352,7 +358,12 @@ function renderPresent() {
     }
     if (H.phase === "review") {
       s.append(el("div", { class: "banner violet center", style: "margin-top:18px; font-size:20px;" }, "⏳ Time's up — judging on the host console…"));
-    } else if (H.q.type === "buzzer") {
+    } else if (H.q.type !== "buzzer" && H.locks && H.locks.total) {
+      s.append(el("div", { class: "center", style: "margin-top:18px;" },
+        el("div", { class: H.locks.all_in ? "banner good" : "banner", style: "font-size:20px; display:inline-block;" },
+          H.locks.all_in ? `✓ All ${H.locks.total} teams locked in` : `🔒 ${H.locks.count} of ${H.locks.total} locked in`)));
+    }
+    if (H.phase === "active" && H.q.type === "buzzer") {
       const b = H.buzz || { queue: [], top: null };
       if (b.top) s.append(el("div", { class: "center pop", style: "margin-top:14px; font:900 clamp(28px,5vw,64px) 'Unbounded'; color:var(--green); filter:drop-shadow(0 0 20px rgba(46,229,140,.5));" }, "🔔 " + b.top.name + " — answer!"));
       else s.append(el("div", { class: "row center", style: "justify-content:center; margin-top:16px;" },
@@ -387,12 +398,31 @@ function renderTeams() {
   const root = $("#teamChips");
   root.innerHTML = "";
   if (!H.teams.length) { root.append(el("span", { class: "muted tiny" }, "Waiting for teams to join…")); return; }
+  const showTested = H.phase === "lobby" && H.hasBuzzer;
   for (const t of H.teams) {
     const state = !t.connected ? "offline" : (t.away ? "away" : null);
-    root.append(el("div", { class: "chip" + (t.connected && !t.away ? "" : " off") }, avatar(t), t.name,
-      state ? el("span", { class: "pill " + (state === "away" ? "amber" : "red") }, state)
-            : el("span", { class: "muted tiny" }, String(t.score))));
+    let tag;
+    if (state) tag = el("span", { class: "pill " + (state === "away" ? "amber" : "red") }, state);
+    else if (showTested) tag = t.tested ? el("span", { class: "pill green" }, "✓ buzzer")
+                                        : el("span", { class: "pill" }, "untested");
+    else if (H.phase === "active" && H.q && H.q.type !== "buzzer" && t.locked) tag = el("span", { class: "pill green" }, "🔒 locked");
+    else tag = el("span", { class: "muted tiny" }, String(t.score));
+    const chip = el("div", { class: "chip" + (t.connected && !t.away ? "" : " off"), "data-team": t.id },
+      avatar(t), t.name, tag);
+    root.append(chip);
   }
+  if (showTested) {
+    const n = H.teams.filter((t) => t.tested).length;
+    root.append(el("div", { class: "muted tiny", style: "width:100%; margin-top:6px;" },
+      `${n} of ${H.teams.length} tested their buzzer` + (n < H.teams.length ? " — ask the rest to tap TEST" : " ✓")));
+  }
+}
+
+function flashTeamChip(id) {
+  const c = document.querySelector(`.chip[data-team="${id}"]`);
+  if (!c) return;
+  c.classList.add("alerting");
+  setTimeout(() => c.classList.remove("alerting"), 2800);
 }
 
 function renderTimer(rem) {
@@ -506,14 +536,28 @@ function renderSidePanel() {
   if (H.phase === "active" && H.q && H.q.type === "buzzer") return renderBuzzPanel(p);
   if (H.phase === "review") return renderReviewPanel(p);
   if (H.phase === "active" && H.q && H.q.type === "freetext") {
-    p.innerHTML = ""; p.append(el("h3", {}, "Free-text"), el("p", { class: "muted tiny" }, "Answers are hidden until the timer ends or you click “End & evaluate now”. Then grade each team."));
+    p.innerHTML = ""; p.append(el("h3", {}, "Free-text"), lockProgress(),
+      el("p", { class: "muted tiny" }, "Answers are hidden until the timer ends or you click “End & evaluate now”. Then grade each team."));
     return;
   }
   if (H.phase === "active" && H.q && H.q.type === "select") {
-    p.innerHTML = ""; p.append(el("h3", {}, "Select"), el("p", { class: "muted tiny" }, "Auto-graded against your answer key when the timer ends. You can review and adjust before scores apply."));
+    p.innerHTML = ""; p.append(el("h3", {}, "Select"), lockProgress(),
+      el("p", { class: "muted tiny" }, "Auto-graded against your answer key when the timer ends. You can review and adjust before scores apply."));
     return;
   }
   p.innerHTML = ""; p.append(el("h3", {}, "Panel"), el("p", { class: "muted tiny" }, "Controls update with the round."));
+}
+
+function lockProgress() {
+  const i = H.locks;
+  if (!i || !i.total) return el("p", { class: "muted tiny" }, "Waiting for teams to lock in…");
+  const box = el("div", { style: "margin-bottom:10px;" });
+  box.append(el("div", { class: i.all_in ? "banner good" : "banner", style: "font-size:15px;" },
+    i.all_in ? `✓ All ${i.total} teams locked in — safe to evaluate` : `🔒 ${i.count} of ${i.total} teams locked in`));
+  const bar = el("div", { class: "timerbar", style: "margin-top:8px;" },
+    el("div", { style: `width:${Math.round((i.count / i.total) * 100)}%; background:${i.all_in ? "var(--green)" : "var(--blue)"};` }));
+  box.append(bar);
+  return box;
 }
 
 function renderBuzzPanel(p) {

@@ -164,6 +164,7 @@ def dispatch_ws(conn, msg):
                         "name": team.name, "code": room.code, "title": room.quiz["title"]})
         room.send_full_state(conn)
         room.broadcast(room.roster_msg())
+        room.refresh_locks()
         return
 
     # ---- all other messages require an established room ----
@@ -213,11 +214,18 @@ def handle_team_msg(room, tid, t, msg):
         room.submit_text(tid, (msg.get("text") or "")[:2000])
     elif t == "submit_select":
         room.submit_select(tid, msg.get("selection", []))
+    elif t == "buzz_test":
+        room.buzz_test(tid)
+    elif t == "lock_in":
+        room.set_lock(tid, bool(msg.get("locked")))
     elif t == "presence":
         # device backgrounded / foregrounded — surface it to the host roster
         team = room.teams.get(tid)
         if team:
+            was_away = team.away
             team.away = bool(msg.get("away"))
+            if team.away and not was_away:
+                room.presence_alert(team, "away")
             room.broadcast(room.roster_msg())
 
 
@@ -233,7 +241,9 @@ def cleanup_ws(conn):
         team = room.teams.get(conn.team_id)
         if team and team.conn is conn:
             team.conn = None
+            room.presence_alert(team, "offline")
             room.broadcast(room.roster_msg())
+            room.refresh_locks()
 
 
 # ================================ HTTP / REST =================================

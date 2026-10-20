@@ -267,6 +267,26 @@ textarea { resize: vertical; min-height: 70px; }
 @keyframes qzFlash { 0%{background:rgba(77,124,255,.25)} 100%{background:transparent} }
 .pop { animation: qzPop .4s cubic-bezier(.34,1.56,.64,1) both; }
 
+/* ===== presence alert: team left the app / dropped ===== */
+.alert-stack { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 90;
+  display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(92vw, 560px); }
+.alert-flash {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 14px 20px; border-radius: 14px; font: 700 17px 'Outfit';
+  background: rgba(255,184,77,.16); border: 1.5px solid var(--amber); color: #FFD79A;
+  box-shadow: 0 12px 34px rgba(0,0,0,.45);
+  animation: qzAlertIn .35s cubic-bezier(.34,1.56,.64,1), qzAlertFlash 1s ease-in-out 3;
+}
+.alert-flash.offline { background: rgba(255,84,104,.16); border-color: var(--red); color: var(--red-light); }
+.alert-flash .eyes { font-size: 24px; }
+.alert-flash.out { animation: qzAlertOut .4s ease forwards; }
+@keyframes qzAlertIn { from{opacity:0; transform:translateY(-18px) scale(.95)} to{opacity:1; transform:none} }
+@keyframes qzAlertOut { to{opacity:0; transform:translateY(-14px)} }
+@keyframes qzAlertFlash { 0%,100%{box-shadow:0 12px 34px rgba(0,0,0,.45)} 50%{box-shadow:0 0 0 6px rgba(255,184,77,.25), 0 12px 34px rgba(0,0,0,.45)} }
+
+/* roster chip emphasis for away/offline teams */
+.chip.alerting { animation: qzAlertFlash .9s ease-in-out 3; border-color: var(--amber); }
+
 /* ===== present mode (host casts the common view) ===== */
 .present { position: fixed; inset: 0; z-index: 60; background: var(--backdrop); background-color: var(--bg-0);
   display: flex; flex-direction: column; padding: 4vh 5vw 2vh; overflow: auto; }

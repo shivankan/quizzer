@@ -107,8 +107,19 @@ function connect() {
       $("#waitAvatar").style.background = teamGradient(m.teamId);
       if (P.photo) { const a = $("#waitAvatar"); a.style.background = "url(" + P.photo + ") center/cover"; a.textContent = ""; }
     })
-    .on("state", (m) => { P.phase = m.phase; P.q = m.q; P.index = m.index; P.total = m.total; routeView(); })
-    .on("question", (m) => { P.phase = "active"; P.q = m.q; P.index = m.index; P.total = m.total; P.selection = []; P.buzzPos = null; routeView(); renderPlayStage(); })
+    .on("state", (m) => {
+      P.phase = m.phase; P.q = m.q; P.index = m.index; P.total = m.total;
+      if (m.has_buzzer !== undefined) P.hasBuzzer = m.has_buzzer;
+      routeView(); renderBuzzCheck();
+    })
+    .on("buzz_test_ok", () => { P.tested = true; renderBuzzCheck(); })
+    .on("lock_state", (m) => { P.locked = m.locked; renderLockBar(); })
+    .on("locks", (m) => { P.lockInfo = m; P.locked = (m.locked || []).includes(P.teamId); renderLockBar(); })
+    .on("question", (m) => {
+      P.phase = "active"; P.q = m.q; P.index = m.index; P.total = m.total;
+      P.selection = []; P.buzzPos = null; P.locked = false; P.lockInfo = null;
+      routeView(); renderPlayStage();
+    })
     .on("phase", (m) => { P.phase = m.phase; if (m.q) P.q = m.q; routeView(); renderPlayStage(); })
     .on("timer", (m) => P.timer.update(m))
     .on("your_buzz", (m) => { P.buzzPos = m.position; updateBuzzFeedback(m); })
@@ -125,8 +136,44 @@ function connect() {
   ws.connect({ type: "team_join", code: P.code, name: P.name, photo: P.photo, teamId: P.teamId });
 }
 
+// ---- pre-quiz buzzer check (lobby only, buzzer quizzes only) ----
+function renderBuzzCheck() {
+  const box = $("#buzzCheck");
+  if (!box) return;
+  const show = P.phase === "lobby" && P.hasBuzzer;
+  box.classList.toggle("hide", !show);
+  if (!show) return;
+  const mount = $("#buzzCheckMount");
+  if (!mount.firstChild) {
+    const disc = el("div", { class: "buzzdisc", id: "testDisc", style: "width:min(48vw,150px);" },
+      el("div", { class: "halo" }), el("div", { class: "gloss" }),
+      el("div", { class: "face" }, el("span", {}, "TEST")));
+    disc.addEventListener("pointerdown", () => disc.classList.add("pressed"));
+    disc.addEventListener("pointerup", () => disc.classList.remove("pressed"));
+    disc.addEventListener("pointerleave", () => disc.classList.remove("pressed"));
+    disc.addEventListener("click", () => {
+      const rip = el("div", { class: "ripple" });
+      disc.append(rip); setTimeout(() => rip.remove(), 600);
+      if (navigator.vibrate) navigator.vibrate(30);
+      P.ws.send({ type: "buzz_test" });
+      keepAwake();
+    });
+    mount.append(disc);
+  }
+  const disc = $("#testDisc");
+  const face = disc.querySelector(".face span");
+  if (P.tested) {
+    disc.classList.add("up"); face.textContent = "✓";
+    $("#buzzCheckMsg").innerHTML = "";
+    $("#buzzCheckMsg").append(el("span", { class: "armed-note" }, "Buzzer works — you're ready"));
+  } else {
+    disc.classList.remove("up"); face.textContent = "TEST";
+    $("#buzzCheckMsg").textContent = "Give it a tap to make sure your buzzer works.";
+  }
+}
+
 function routeView() {
-  if (P.phase === "lobby") return showView("wait");
+  if (P.phase === "lobby") { showView("wait"); renderBuzzCheck(); return; }
   if (P.phase === "ended") {
     showView("scores"); $("#closeScores").classList.add("hide");
     $("#view-scores h2").textContent = "🏆 Final results"; renderScores();
@@ -201,7 +248,42 @@ function renderPlayStage() {
   else if (P.q.type === "freetext") renderFreetext(stage);
   else if (P.q.type === "select") renderSelect(stage);
 
+  // lock-in control for every non-buzzer question
+  if (P.q.type !== "buzzer") {
+    stage.append(el("div", { id: "lockBar", style: "margin-top:16px;" }));
+    renderLockBar();
+  }
+
   if (P.timer) updateTimer(P.timer.remaining());
+}
+
+// ---- lock in / unlock to edit ----
+function renderLockBar() {
+  const bar = $("#lockBar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  const info = P.lockInfo || {};
+  if (P.locked) {
+    bar.append(el("div", { class: "banner good", style: "display:flex; align-items:center; gap:10px;" },
+      el("span", { class: "grow" }, "✓ Locked in — your answer is final"),
+      el("button", { class: "btn sm", onclick: () => P.ws.send({ type: "lock_in", locked: false }) }, "Unlock & edit")));
+  } else {
+    bar.append(el("button", { class: "btn primary block lg", onclick: () => P.ws.send({ type: "lock_in", locked: true }) }, "🔒 Lock in answer"));
+  }
+  if (info.total) {
+    bar.append(el("p", { class: "muted tiny center", style: "margin-top:8px;" },
+      `${info.count} of ${info.total} teams locked in` + (P.locked ? " · you can still unlock until time runs out" : "")));
+  }
+  setInputsDisabled(P.locked);
+}
+
+function setInputsDisabled(locked) {
+  const ta = $("#ftInput");
+  if (ta) { ta.disabled = !!locked; ta.style.opacity = locked ? ".55" : "1"; }
+  $$("#playStage .opt-card").forEach((c) => {
+    c.style.pointerEvents = locked ? "none" : "";
+    c.style.opacity = locked ? ".6" : "1";
+  });
 }
 
 function timerRing() {

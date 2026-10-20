@@ -191,6 +191,35 @@ function confettiBurst(root) {
   return box;
 }
 
+// Fun, loud callout when a team backgrounds the app or drops mid-question.
+// Shown on the host console, present mode, and the shared display.
+const AWAY_QUIPS = [
+  "just left the app 👀",
+  "switched apps — no Googling! 🔍",
+  "wandered off mid-question 🚶",
+  "is suspiciously elsewhere 🤔",
+];
+const OFFLINE_QUIPS = [
+  "dropped off the grid 📡",
+  "lost connection 🔌",
+  "vanished 💨",
+];
+
+function presenceAlert(name, state) {
+  let stack = document.querySelector(".alert-stack");
+  if (!stack) { stack = el("div", { class: "alert-stack" }); document.body.append(stack); }
+  const pool = state === "offline" ? OFFLINE_QUIPS : AWAY_QUIPS;
+  const quip = pool[Math.floor(Math.random() * pool.length)];
+  const node = el("div", { class: "alert-flash" + (state === "offline" ? " offline" : "") },
+    el("span", { class: "eyes" }, state === "offline" ? "📡" : "👀"),
+    el("span", { class: "grow" }, name + " " + quip));
+  stack.append(node);
+  setTimeout(() => {
+    node.classList.add("out");
+    setTimeout(() => { node.remove(); if (!stack.children.length) stack.remove(); }, 400);
+  }, 5000);
+}
+
 function orbs() {
   return el("div", { class: "orbs" }, el("div", { class: "orb b" }), el("div", { class: "orb v" }), el("div", { class: "orb g" }));
 }
