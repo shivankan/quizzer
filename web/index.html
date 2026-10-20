@@ -265,34 +265,17 @@
   }
   .scroll-cue .chev { display: block; font-size: 1.1rem; margin-top: 2px; }
 
-  /* ---- level two: scan to play ---- */
-  .qr-panel {
-    width: 100%; max-width: 440px; padding: 1.6rem 1.2rem; text-align: center;
-    background: rgba(10,14,39,.86);
-    border: 3px solid var(--neon-green);
-    box-shadow: 0 0 40px rgba(57,255,20,.45), inset 0 0 30px rgba(57,255,20,.08);
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  /* ---- level two: just the code, everything dialled down ---- */
+  /* The scene keeps running behind it, but muted, so the code is the only
+     thing competing for attention -- and high contrast scans better. */
+  #screen2 { filter: saturate(.35) brightness(.72); }
+  #screen2 .qr-frame {
+    display: inline-block; padding: 16px; background: #fff;
+    border: 2px solid rgba(255,255,255,.25);
+    box-shadow: 0 0 30px rgba(0,0,0,.5);
   }
-  .qr-level { font: 700 .68rem 'Courier New', monospace; color: var(--neon-yellow);
-    letter-spacing: .18em; text-transform: uppercase; text-shadow: 0 0 12px var(--neon-yellow); }
-  .qr-title { font: 900 1.35rem 'Arial Black', sans-serif; color: var(--neon-green);
-    text-transform: uppercase; letter-spacing: .04em; margin: .5rem 0 .2rem;
-    text-shadow: 0 0 18px rgba(57,255,20,.8); }
-  .qr-sub { font: .74rem 'Courier New', monospace; color: var(--neon-cyan);
-    margin-bottom: 1rem; line-height: 1.6; }
-  .qr-frame {
-    display: inline-block; padding: 12px; background: #fff;
-    border: 3px solid var(--neon-cyan);
-    box-shadow: 0 0 34px rgba(0,245,255,.6);
-  }
-  .qr-frame canvas { display: block; image-rendering: pixelated; max-width: 100%; height: auto; }
-  .qr-url {
-    display: block; margin: 1rem auto .2rem; word-break: break-all;
-    font: 700 .76rem 'Courier New', monospace; color: var(--neon-yellow);
-    text-shadow: 0 0 10px rgba(255,255,0,.6); text-decoration: none;
-  }
-  .qr-url:hover { text-decoration: underline; }
-  .qr-copy { margin-top: .6rem; }
+  #screen2 .qr-frame canvas { display: block; image-rendering: pixelated; max-width: 100%; height: auto; }
+
   @keyframes cueBob { 0%,100% { transform: translateY(0); opacity: .55; }
                       50% { transform: translateY(6px); opacity: 1; } }
 
@@ -421,18 +404,7 @@
 </div>
 
 <div class="screen" id="screen2">
-  <div class="qr-panel">
-    <div class="qr-level">— Level 2 —</div>
-    <div class="qr-title">🕹 Scan to Play</div>
-    <div class="qr-sub">
-      POINT A PHONE CAMERA AT THE CODE<br>
-      TO OPEN QUIZZER ON THE LIVE SERVER
-    </div>
-    <div class="qr-frame" id="qrBox"></div>
-    <a class="qr-url" id="qrUrl" href="https://quizzer-ux0t.onrender.com" target="_blank" rel="noopener noreferrer"></a>
-    <button class="btn btn-secondary qr-copy" id="copyUrl" type="button">Copy Link</button>
-    <div class="info-box">▶ SHARE THIS CODE SO PLAYERS CAN JOIN FROM ANYWHERE</div>
-  </div>
+  <div class="qr-frame" id="qrBox"></div>
 </div>
 
 <script src="/js/qr.js"></script>
@@ -566,21 +538,14 @@
 
   /* ---------- level two: QR to the live server ---------- */
   const LIVE_URL = "https://quizzer-ux0t.onrender.com";
-  $("#qrUrl").textContent = LIVE_URL.replace(/^https:\/\//, "");
   try {
-    // quiet zone of 4 modules per spec, and no CSS upscale so module edges
-    // stay pixel-crisp for the scanner
-    QR.render($("#qrBox"), LIVE_URL, { scale: 6, quiet: 4,
+    // quiet zone of 4 modules per spec, rendered 1:1 so module edges stay
+    // pixel-crisp for the scanner
+    QR.render($("#qrBox"), LIVE_URL, { scale: 7, quiet: 4,
       label: "QR code linking to " + LIVE_URL });
   } catch (e) {
     $("#qrBox").textContent = "QR unavailable";
   }
-  $("#copyUrl").onclick = async () => {
-    const b = $("#copyUrl");
-    try { await navigator.clipboard.writeText(LIVE_URL); b.textContent = "Copied ✓"; }
-    catch (e) { b.textContent = "Press ⌘C"; }
-    setTimeout(() => { b.textContent = "Copy Link"; }, 1600);
-  };
 
   // land on HOST if we already know them, otherwise PLAY (most visitors are players)
   showTab(lastEmail ? "host" : "play");

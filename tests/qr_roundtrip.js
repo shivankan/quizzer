@@ -46,11 +46,24 @@ function reserved(version) {
 function decode(qr) {
   var m = qr.modules, size = qr.size, version = (size - 17) / 4;
   // --- read format info (top-left copy) and recover the mask ---
-  var bits = 0, i;
-  for (i = 0; i <= 5; i++) bits |= m[8][i] << i;
-  bits |= m[8][7] << 6; bits |= m[8][8] << 7; bits |= m[7][8] << 8;
-  for (i = 9; i <= 14; i++) bits |= m[14 - i][8] << i;
-  var fmt = bits ^ 0x5412;
+  var i;
+  // copy 1: down column 8, then left along row 8
+  var c1 = 0;
+  for (i = 0; i <= 5; i++) c1 |= m[i][8] << i;
+  c1 |= m[7][8] << 6; c1 |= m[8][8] << 7; c1 |= m[8][7] << 8;
+  for (i = 9; i <= 14; i++) c1 |= m[8][14 - i] << i;
+  // copy 2: along row 8 at the right edge, then down column 8 at the bottom.
+  // The two copies sit in geometrically different places, so reading both and
+  // demanding they agree catches an axis mix-up that a single read would not.
+  var c2 = 0;
+  for (i = 0; i <= 7; i++) c2 |= m[8][size - 1 - i] << i;
+  for (i = 8; i <= 14; i++) c2 |= m[size - 15 + i][8] << i;
+  if (c1 !== c2) throw new Error("format copies disagree: " + c1.toString(2) + " vs " + c2.toString(2));
+  // the 15 bits must be a valid BCH(15,5) codeword
+  var fmt = c1 ^ 0x5412;
+  var chk = (fmt >>> 10) << 10;
+  for (var b = 4; b >= 0; b--) if ((chk >>> (b + 10)) & 1) chk ^= 0x537 << b;
+  if ((((fmt >>> 10) << 10) | chk) !== fmt) throw new Error("format info fails its BCH check");
   var ecLevel = (fmt >>> 13) & 3, mask = (fmt >>> 10) & 7;
   if (ecLevel !== 0) throw new Error("expected ECC level M, got " + ecLevel);
 

@@ -209,15 +209,19 @@
   }
 
   function placeFormat(m, mask) {
+    // m[row][col].  Copy 1: bits 0-5 run DOWN column 8, bits 9-14 run LEFT
+    // along row 8.  Copy 2: bits 0-7 along row 8 at the right edge, bits 8-14
+    // down column 8 at the bottom.  (Getting these two axes the wrong way round
+    // yields a code no scanner can read.)
     var size = m.length, bits = formatBits(mask), i;
-    for (i = 0; i <= 5; i++) m[8][i] = (bits >>> i) & 1;
-    m[8][7] = (bits >>> 6) & 1;
+    for (i = 0; i <= 5; i++) m[i][8] = (bits >>> i) & 1;
+    m[7][8] = (bits >>> 6) & 1;
     m[8][8] = (bits >>> 7) & 1;
-    m[7][8] = (bits >>> 8) & 1;
-    for (i = 9; i <= 14; i++) m[14 - i][8] = (bits >>> i) & 1;
-    for (i = 0; i <= 7; i++) m[size - 1 - i][8] = (bits >>> i) & 1;
-    for (i = 8; i <= 14; i++) m[8][size - 15 + i] = (bits >>> i) & 1;
-    m[size - 8][8] = 1;                        // dark module stays set
+    m[8][7] = (bits >>> 8) & 1;
+    for (i = 9; i <= 14; i++) m[8][14 - i] = (bits >>> i) & 1;
+    for (i = 0; i <= 7; i++) m[8][size - 1 - i] = (bits >>> i) & 1;
+    for (i = 8; i <= 14; i++) m[size - 15 + i][8] = (bits >>> i) & 1;
+    m[size - 8][8] = 1;                        // always-dark module
   }
 
   // version info: BCH(18,6) for versions >= 7
