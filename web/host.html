@@ -27,9 +27,19 @@
         <div class="row">
           <input id="newTitle" placeholder="New quiz title…" style="width:220px;">
           <button class="btn primary" id="createQuiz">+ Create</button>
+          <button class="btn" id="importBtn" title="Restore a quiz from a .json backup">⬆ Import</button>
+          <input id="importFile" type="file" accept="application/json,.json" class="hide">
         </div>
       </div>
       <div id="quizList" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="card">
+      <div class="row spread">
+        <h2 style="margin:0;">Starter quizzes</h2>
+        <span class="muted tiny">Built into the app — always here, even after a redeploy</span>
+      </div>
+      <div id="seedList" style="margin-top:16px;"></div>
     </div>
   </section>
 

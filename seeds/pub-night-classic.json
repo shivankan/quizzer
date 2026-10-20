@@ -1,0 +1,53 @@
+{
+  "title": "Pub Night Classic",
+  "questions": [
+    {
+      "type": "buzzer",
+      "text": "Which planet has the shortest day in the solar system?",
+      "points": 15,
+      "timer_seconds": 0,
+      "time_increment": 10
+    },
+    {
+      "type": "select",
+      "text": "Which of these are noble gases?",
+      "points": 10,
+      "timer_seconds": 25,
+      "time_increment": 10,
+      "multi_select": true,
+      "options": ["Helium", "Oxygen", "Neon", "Nitrogen"],
+      "correct": [0, 2]
+    },
+    {
+      "type": "freetext",
+      "text": "Name the US state with a coastline on both the Atlantic and the Gulf of Mexico.",
+      "points": 10,
+      "timer_seconds": 30,
+      "time_increment": 10
+    },
+    {
+      "type": "select",
+      "text": "Who painted 'The Starry Night'?",
+      "points": 10,
+      "timer_seconds": 20,
+      "time_increment": 5,
+      "multi_select": false,
+      "options": ["Claude Monet", "Vincent van Gogh", "Pablo Picasso", "Salvador Dalí"],
+      "correct": [1]
+    },
+    {
+      "type": "buzzer",
+      "text": "What is the only mammal capable of true sustained flight?",
+      "points": 15,
+      "timer_seconds": 0,
+      "time_increment": 10
+    },
+    {
+      "type": "freetext",
+      "text": "Which band released the album 'A Night at the Opera' in 1975?",
+      "points": 10,
+      "timer_seconds": 30,
+      "time_increment": 10
+    }
+  ]
+}

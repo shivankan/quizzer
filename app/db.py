@@ -204,6 +204,30 @@ def save_quiz(host_id, quiz_id, title, questions):
     return True
 
 
+def import_quiz(host_id, data):
+    """Create a quiz for a host from {title, questions:[...]}. Returns the new id.
+
+    Used by seed import and by JSON upload, so both paths share validation
+    (save_quiz coerces types and drops unknown fields).
+    """
+    title = (data.get("title") or "Imported quiz").strip()[:120] or "Imported quiz"
+    # de-duplicate the title so a re-import never silently overwrites
+    base, n = title, 2
+    while quiz_id_by_title(host_id, title):
+        title = f"{base} ({n})"
+        n += 1
+    qid = create_quiz(host_id, title)
+    save_quiz(host_id, qid, title, data.get("questions") or [])
+    return qid, title
+
+
+def quiz_id_by_title(host_id, title):
+    row = _conn().execute(
+        "SELECT id FROM quizzes WHERE host_id=? AND title=?", (host_id, title)
+    ).fetchone()
+    return row["id"] if row else None
+
+
 def delete_quiz(host_id, quiz_id):
     c = _conn()
     if quiz_owner(quiz_id) != host_id:

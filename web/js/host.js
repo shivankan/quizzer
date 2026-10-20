@@ -28,10 +28,79 @@ async function loadQuizzes() {
       el("div", { class: "row" },
         el("button", { class: "btn sm", onclick: () => openEditor(q.id) }, "Edit"),
         el("button", { class: "btn sm primary", onclick: () => hostLive(q.id), disabled: q.qcount === 0 }, "Host live →"),
+        el("button", { class: "btn sm ghost", title: "Download as .json backup", onclick: () => exportQuiz(q.id) }, "⬇"),
         el("button", { class: "btn sm ghost", onclick: () => deleteQuiz(q.id, q.title) }, "🗑"))
     ));
   }
 }
+
+// ---- starter quizzes (shipped in the repo, survive disk wipes) ----
+async function loadSeeds() {
+  const root = $("#seedList");
+  root.innerHTML = "";
+  let data;
+  try { data = await api("/api/seeds"); } catch (e) { return; }
+  if (!data.seeds.length) {
+    root.append(el("p", { class: "muted tiny" }, "No starter quizzes bundled. Add .json files to the seeds/ folder in the repo."));
+    return;
+  }
+  for (const s of data.seeds) {
+    const parts = Object.entries(s.breakdown || {})
+      .map(([t, n]) => n + " " + (QTYPE_LABEL[t] || t).toLowerCase()).join(" · ");
+    root.append(el("div", { class: "quizitem" },
+      el("div", {},
+        el("div", { class: "title" }, s.title),
+        el("div", { class: "muted tiny" }, `${s.count} question${s.count === 1 ? "" : "s"}${parts ? " — " + parts : ""}`)),
+      el("button", { class: "btn sm", onclick: (e) => addSeed(s.name, e.target) }, "+ Add to my quizzes")));
+  }
+}
+
+async function addSeed(name, btn) {
+  btn.disabled = true; btn.textContent = "Adding…";
+  try {
+    await api("/api/seeds/import", "POST", { name });
+    await loadQuizzes();
+    btn.textContent = "Added ✓";
+    setTimeout(() => { btn.disabled = false; btn.textContent = "+ Add to my quizzes"; }, 1500);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "+ Add to my quizzes";
+    alert(e.message);
+  }
+}
+
+// ---- JSON export / import (backup that survives anything) ----
+async function exportQuiz(id) {
+  const quiz = await api("/api/quizzes/" + id);
+  const clean = {
+    title: quiz.title,
+    questions: quiz.questions.map((q) => ({
+      type: q.type, text: q.text, image_url: q.image_url, points: q.points,
+      timer_seconds: q.timer_seconds, time_increment: q.time_increment,
+      multi_select: q.multi_select, options: q.options, correct: q.correct,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: "application/json" });
+  const a = el("a", { href: URL.createObjectURL(blob), download: slug(quiz.title) + ".json" });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+const slug = (s) => String(s || "quiz").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "quiz";
+
+$("#importBtn").onclick = () => $("#importFile").click();
+$("#importFile").onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const r = await api("/api/quizzes/import", "POST", data);
+    await loadQuizzes();
+    alert(`Imported “${r.title}”.`);
+  } catch (err) {
+    alert("Could not import that file: " + err.message);
+  }
+  e.target.value = "";
+};
 
 $("#createQuiz").onclick = async () => {
   const title = $("#newTitle").value.trim() || "Untitled quiz";
@@ -525,3 +594,4 @@ function scoreboardEl(rows) {
 // ============================ init ============================
 showView("dash");
 loadQuizzes();
+loadSeeds();

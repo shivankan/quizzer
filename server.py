@@ -19,6 +19,7 @@ from app import protocol as P
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(ROOT, "web")
+SEEDS = os.path.join(ROOT, "seeds")
 HOST = os.environ.get("QUIZZER_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT") or os.environ.get("QUIZZER_PORT") or "8000")
 
@@ -276,6 +277,52 @@ def require_host(req):
     return db.host_for_token(req.bearer())
 
 
+# ---- starter quizzes shipped in the repo ----
+# These live in git, so they survive ephemeral-disk wipes on free hosting.
+# A host can pull any of them into their account with one click.
+
+def _safe_seed_path(name):
+    if not name or "/" in name or "\\" in name or name.startswith("."):
+        return None
+    p = os.path.join(SEEDS, name + ".json")
+    return p if os.path.abspath(p).startswith(SEEDS) and os.path.isfile(p) else None
+
+
+def read_seed(name):
+    p = _safe_seed_path(name)
+    if not p:
+        return None
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def list_seeds():
+    out = []
+    if not os.path.isdir(SEEDS):
+        return out
+    for fn in sorted(os.listdir(SEEDS)):
+        if not fn.endswith(".json"):
+            continue
+        name = fn[:-5]
+        data = read_seed(name)
+        if not data:
+            continue
+        qs = data.get("questions") or []
+        counts = {}
+        for q in qs:
+            counts[q.get("type")] = counts.get(q.get("type"), 0) + 1
+        out.append({
+            "name": name,
+            "title": data.get("title") or name,
+            "count": len(qs),
+            "breakdown": counts,
+        })
+    return out
+
+
 def handle_api(req):
     path = req.path
     method = req.method
@@ -313,6 +360,14 @@ def handle_api(req):
         qid = db.create_quiz(host_id, d.get("title"))
         return json_response({"id": qid})
 
+    # import from uploaded JSON — must precede the numeric /api/quizzes/{id} route
+    if path == "/api/quizzes/import" and method == "POST":
+        data = req.json()
+        if not isinstance(data.get("questions"), list):
+            return json_response({"error": "That file doesn't look like a Quizzer quiz."}, "400 Bad Request")
+        qid, title = db.import_quiz(host_id, data)
+        return json_response({"id": qid, "title": title})
+
     if path.startswith("/api/quizzes/"):
         try:
             qid = int(path.split("/")[3])
@@ -330,6 +385,18 @@ def handle_api(req):
         if method == "DELETE":
             ok = db.delete_quiz(host_id, qid)
             return json_response({"ok": ok})
+
+    # ---- starter quizzes shipped in the repo (survive free-tier disk wipes) ----
+    if path == "/api/seeds" and method == "GET":
+        return json_response({"seeds": list_seeds()})
+
+    if path == "/api/seeds/import" and method == "POST":
+        name = (req.json().get("name") or "").strip()
+        data = read_seed(name)
+        if data is None:
+            return json_response({"error": "Starter quiz not found."}, "404 Not Found")
+        qid, title = db.import_quiz(host_id, data)
+        return json_response({"id": qid, "title": title})
 
     if path == "/api/rooms" and method == "POST":
         d = req.json()
