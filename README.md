@@ -1,7 +1,7 @@
 # Quizzer — live multi-format quiz platform
 
-A single-tool live trivia host: buzzer rounds, free-text, and multiple-choice —
-displayed, collected, arbitrated, and scored in real time from one screen.
+A single-tool live trivia host: questions displayed, responses collected,
+buzzes arbitrated, and scores tallied in real time from one screen.
 Participants join from a phone with no install.
 
 This is **Phase 1 (Core MVP)** from the PRD, built with **zero dependencies** —
