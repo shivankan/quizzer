@@ -1,0 +1,80 @@
+{
+  "title": "Sample — every option demonstrated",
+  "questions": [
+    {
+      "type": "buzzer",
+      "text": "Which planet has the shortest day in the solar system?",
+      "points": 15,
+      "timer_seconds": 0,
+      "time_increment": 10,
+      "media_url": "",
+      "media_type": "",
+      "media_scale": 100,
+      "media_first": false
+    },
+    {
+      "type": "buzzer",
+      "text": "Buzz in when you recognise this track.",
+      "points": 20,
+      "timer_seconds": 45,
+      "time_increment": 15,
+      "media_url": "https://upload.wikimedia.org/wikipedia/commons/c/c8/Example.ogg",
+      "media_type": "audio",
+      "media_scale": 100,
+      "media_first": true
+    },
+    {
+      "type": "freetext",
+      "text": "Name any noble gas.",
+      "points": 10,
+      "timer_seconds": 30,
+      "time_increment": 10,
+      "media_url": "",
+      "media_type": "",
+      "media_scale": 100,
+      "media_first": false
+    },
+    {
+      "type": "select",
+      "text": "Who painted 'The Starry Night'?",
+      "points": 10,
+      "timer_seconds": 20,
+      "time_increment": 5,
+      "multi_select": false,
+      "options": ["Claude Monet", "Vincent van Gogh", "Pablo Picasso", "Salvador Dalí"],
+      "correct": [1],
+      "media_url": "",
+      "media_type": "",
+      "media_scale": 100,
+      "media_first": false
+    },
+    {
+      "type": "select",
+      "text": "Which of these are noble gases?",
+      "points": 15,
+      "timer_seconds": 30,
+      "time_increment": 10,
+      "multi_select": true,
+      "options": ["Helium", "Oxygen", "Neon", "Nitrogen", "Argon"],
+      "correct": [0, 2, 4],
+      "media_url": "",
+      "media_type": "",
+      "media_scale": 100,
+      "media_first": false
+    },
+    {
+      "type": "select",
+      "text": "Which landmark is shown here?",
+      "points": 10,
+      "timer_seconds": 25,
+      "time_increment": 5,
+      "multi_select": false,
+      "options": ["Eiffel Tower", "Big Ben", "Colosseum", "Sagrada Família"],
+      "correct": [2],
+      "media_url": "https://upload.wikimedia.org/wikipedia/commons/d/de/Colosseo_2020.jpg",
+      "media_type": "image",
+      "media_scale": 70,
+      "media_first": true
+    }
+  ]
+}

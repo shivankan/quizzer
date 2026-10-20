@@ -175,6 +175,14 @@ function mediaEl(q, cap) {
   return box;
 }
 
+// Append question text and media in the author's chosen order. Every surface
+// goes through this so "media first" means the same thing everywhere.
+function appendQuestionBody(container, q, cap, textNode) {
+  const m = mediaEl(q, cap);
+  const parts = q && q.media_first ? [m, textNode] : [textNode, m];
+  parts.forEach((p) => { if (p) container.append(p); });
+}
+
 function mediaLabel(q) {
   const t = q.media_type || (q.image_url || q.media_url ? "image" : "");
   return { image: "🖼 Image", audio: "🎵 Audio", video: "🎬 Video" }[t] || "";

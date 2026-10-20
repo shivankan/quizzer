@@ -8,6 +8,7 @@ for real-time gameplay, all on one asyncio server / one port.
 Run:  python3 server.py   (then open http://localhost:8000)
 """
 import asyncio
+import base64
 import json
 import mimetypes
 import os
@@ -315,6 +316,80 @@ def serve_static(path):
 # email -> last reset request time, so one address can't be mail-bombed
 _RESET_THROTTLE = {}
 
+EXT_TO_KIND = {}
+for _ct, (_k, _e) in MEDIA_TYPES.items():
+    EXT_TO_KIND.setdefault(_e, (_k, _ct))
+
+# Per-file and whole-export caps for inlining media as data URIs.
+EXPORT_FILE_CAP = int(os.environ.get("QUIZZER_EXPORT_FILE_MB", "10")) * 1024 * 1024
+EXPORT_TOTAL_CAP = int(os.environ.get("QUIZZER_EXPORT_TOTAL_MB", "60")) * 1024 * 1024
+
+
+def _save_media_bytes(data, ctype):
+    """Write bytes to uploads/ and return the public URL, or None if the type
+    isn't allowed."""
+    kind_ext = MEDIA_TYPES.get((ctype or "").split(";")[0].strip().lower())
+    if not kind_ext or not data or len(data) > MAX_UPLOAD:
+        return None, None
+    kind, ext = kind_ext
+    os.makedirs(UPLOADS, exist_ok=True)
+    name = secrets.token_urlsafe(16) + ext
+    with open(os.path.join(UPLOADS, name), "wb") as f:
+        f.write(data)
+    return "/uploads/" + name, kind
+
+
+def materialize_media(questions):
+    """Turn any `data:` media URI into a real file under uploads/.
+
+    Imported quizzes carry their media inline so a single .json is portable;
+    unpacking it here keeps the database small and lets the normal /uploads/
+    route serve it.
+    """
+    for q in questions or []:
+        url = (q.get("media_url") or "").strip()
+        if not url.startswith("data:"):
+            continue
+        try:
+            head, b64 = url.split(",", 1)
+            ctype = head[5:].split(";")[0]
+            raw = base64.b64decode(b64)
+        except Exception:
+            q["media_url"] = ""
+            q["media_type"] = ""
+            continue
+        new_url, kind = _save_media_bytes(raw, ctype)
+        q["media_url"] = new_url or ""
+        q["media_type"] = kind or ""
+    return questions
+
+
+def inline_media(quiz):
+    """Replace /uploads/ references with data: URIs so an export is self-contained.
+    Files that are missing or too large keep their path and are reported."""
+    total = 0
+    skipped = []
+    for q in quiz.get("questions", []):
+        url = q.get("media_url") or ""
+        if not url.startswith("/uploads/"):
+            continue
+        rel = os.path.normpath(url[len("/uploads/"):]).lstrip("/")
+        full = os.path.join(UPLOADS, rel)
+        if not os.path.abspath(full).startswith(os.path.abspath(UPLOADS)) or not os.path.isfile(full):
+            skipped.append({"text": q.get("text", "")[:40], "why": "file missing"})
+            continue
+        size = os.path.getsize(full)
+        if size > EXPORT_FILE_CAP or total + size > EXPORT_TOTAL_CAP:
+            skipped.append({"text": q.get("text", "")[:40], "why": "too large to embed"})
+            continue
+        ext = os.path.splitext(full)[1].lower()
+        kind_ct = EXT_TO_KIND.get(ext)
+        ctype = kind_ct[1] if kind_ct else "application/octet-stream"
+        with open(full, "rb") as f:
+            q["media_url"] = "data:%s;base64,%s" % (ctype, base64.b64encode(f.read()).decode())
+        total += size
+    return quiz, skipped
+
 
 def require_host(req):
     return db.host_for_token(req.bearer())
@@ -439,6 +514,7 @@ def handle_api(req):
         data = req.json()
         if not isinstance(data.get("questions"), list):
             return json_response({"error": "That file doesn't look like a Quizzer quiz."}, "400 Bad Request")
+        data["questions"] = materialize_media(data["questions"])
         qid, title = db.import_quiz(host_id, data)
         return json_response({"id": qid, "title": title})
 
@@ -451,10 +527,15 @@ def handle_api(req):
             quiz = db.get_quiz(host_id, qid)
             if not quiz:
                 return json_response({"error": "Quiz not found."}, "404 Not Found")
+            # ?export=1 inlines media so the file is portable on its own
+            if req.query.get("export"):
+                quiz, skipped = inline_media(quiz)
+                quiz["_skipped_media"] = skipped
             return json_response(quiz)
         if method == "PUT":
             d = req.json()
-            ok = db.save_quiz(host_id, qid, d.get("title"), d.get("questions", []))
+            questions = materialize_media(d.get("questions", []))
+            ok = db.save_quiz(host_id, qid, d.get("title"), questions)
             return json_response({"ok": ok}) if ok else json_response({"error": "Not found."}, "404 Not Found")
         if method == "DELETE":
             ok = db.delete_quiz(host_id, qid)
@@ -469,6 +550,7 @@ def handle_api(req):
         data = read_seed(name)
         if data is None:
             return json_response({"error": "Starter quiz not found."}, "404 Not Found")
+        data["questions"] = materialize_media(data.get("questions", []))
         qid, title = db.import_quiz(host_id, data)
         return json_response({"id": qid, "title": title})
 

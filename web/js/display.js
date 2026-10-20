@@ -64,8 +64,7 @@ function render() {
       el("span", { class: "pill" }, D.q.points + " PTS")),
     (D.q.timer_seconds > 0) ? bigRing() : el("span", {})));
 
-  s.append(el("div", { class: "qbig" }, D.q.text || ""));
-  { const m = mediaEl(D.q, "46vh"); if (m) s.append(m); }
+  appendQuestionBody(s, D.q, "46vh", D.q.text ? el("div", { class: "qbig" }, D.q.text) : null);
 
   if (D.q.type === "select") {
     const grid = el("div", { class: "grid cols2" });

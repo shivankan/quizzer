@@ -69,10 +69,37 @@ lands on the **Player** phone, the **Presenter** screen, and the **Host** consol
 arrow keys to step between questions. The Host tab is the only one that reveals the
 answer key — a quick way to confirm you haven't leaked answers onto the shared screen.
 
-> ⚠️ **Uploads do not survive a redeploy on free hosting.** `uploads/` is an ordinary
-> directory on the ephemeral disk, so media is lost whenever the service restarts, and
-> JSON export does not embed the files. For media rounds either attach a persistent disk
-> (see `QUIZZER_DB`) or paste URLs to files hosted elsewhere.
+**Order:** a per-question **Text first / Media first** toggle decides whether the media
+sits above or below the question text. It applies identically on every surface.
+
+### How media is stored and exported
+
+| Where | Form | Why |
+|---|---|---|
+| On disk | `uploads/<random>.ext` | Random names; the extension comes from the `Content-Type`, never the uploaded filename |
+| In the database | `media_url = "/uploads/<name>"` | Just a path, so rows stay small |
+| In an **export** | `data:<mime>;base64,…` | The file is inlined, so one `.json` carries its own media |
+| On **import** | written back to `uploads/`, field rewritten to the path | Keeps the database small and lets the normal route serve it |
+
+So **export → redeploy → import restores media byte-for-byte**, which is the supported
+way to carry a quiz across the ephemeral free-tier disk. Files larger than
+`QUIZZER_EXPORT_FILE_MB` (10) or beyond `QUIZZER_EXPORT_TOTAL_MB` (60) in total are left
+as paths rather than inlined, and the export tells you which ones.
+
+> ⚠️ Uploaded files themselves still live on the ephemeral disk, so **media is lost on a
+> redeploy unless you re-import an export** (or attach a persistent disk, or use public
+> URLs). Exports are the portable copy — keep one for any quiz with media.
+
+## Writing quizzes as JSON (including with AI)
+
+The import/export format is documented in **[docs/quiz-format.md](docs/quiz-format.md)**,
+with a fully worked example at
+**[`seeds/_sample-all-options.json`](seeds/_sample-all-options.json)** covering every
+question type, both media orders, single and multi select, and audio and image media.
+
+Hand that doc to an AI assistant, ask for a quiz, save the JSON, and import it with
+**⬆ Import**. Unknown fields are ignored and missing ones take defaults, so a terse file
+works fine.
 
 ## Password reset (email)
 

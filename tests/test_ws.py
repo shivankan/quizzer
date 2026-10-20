@@ -374,6 +374,36 @@ def main():
     check(pq.get("media_url") == "/uploads/a.mp3" and pq.get("media_type") == "audio",
           "media is delivered to players in the live question")
 
+    # ===== media export / import round trip, and text-media order =====
+    print("\nMedia export/import + ordering:")
+    up2 = http_bin("/api/upload", png, "image/png", tok)
+    eqid = http_json("/api/quizzes", "POST", {"title": "Exportable"}, token=tok)["id"]
+    http_json("/api/quizzes/%d" % eqid, "PUT", {"title": "Exportable", "questions": [
+        {"type": "select", "text": "Which?", "points": 10, "timer_seconds": 20,
+         "time_increment": 5, "multi_select": False, "options": ["A", "B"], "correct": [1],
+         "media_url": up2["url"], "media_type": "image", "media_scale": 70,
+         "media_first": True}]}, token=tok)
+    plain = http_json("/api/quizzes/%d" % eqid, token=tok)["questions"][0]
+    check(plain["media_url"].startswith("/uploads/"), "normal fetch keeps the lightweight path")
+    check(plain["media_first"] is True, "media_first (media above text) persists")
+
+    exported = http_json("/api/quizzes/%d?export=1" % eqid, token=tok)
+    check(exported["questions"][0]["media_url"].startswith("data:image/png;base64,"),
+          "export embeds media as a data URI")
+
+    restored = http_json("/api/quizzes/import", "POST",
+                         {"title": "Restored", "questions": exported["questions"]}, token=tok)
+    rq = http_json("/api/quizzes/%d" % restored["id"], token=tok)["questions"][0]
+    check(rq["media_url"].startswith("/uploads/"), "import re-materialises media to a file")
+    check(rq["media_scale"] == 70 and rq["media_first"] is True,
+          "size and ordering survive the export/import round trip")
+
+    broken = http_json("/api/quizzes/import", "POST", {"title": "Bad", "questions": [
+        {"type": "buzzer", "text": "x", "points": 10,
+         "media_url": "data:image/png;base64,!!!", "media_type": "image"}]}, token=tok)
+    bq = http_json("/api/quizzes/%d" % broken["id"], token=tok)["questions"][0]
+    check(bq["media_url"] == "", "a malformed data URI is dropped rather than fatal")
+
     print("\n" + ("ALL CHECKS PASSED ✅" if not FAILS else f"FAILED: {FAILS}"))
     return 1 if FAILS else 0
 

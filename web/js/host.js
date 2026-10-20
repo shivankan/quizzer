@@ -70,15 +70,23 @@ async function addSeed(name, btn) {
 
 // ---- JSON export / import (backup that survives anything) ----
 async function exportQuiz(id) {
-  const quiz = await api("/api/quizzes/" + id);
+  // ?export=1 inlines uploaded media as data: URIs, so the file stands alone
+  const quiz = await api("/api/quizzes/" + id + "?export=1");
   const clean = {
     title: quiz.title,
     questions: quiz.questions.map((q) => ({
-      type: q.type, text: q.text, image_url: q.image_url, points: q.points,
+      type: q.type, text: q.text, points: q.points,
       timer_seconds: q.timer_seconds, time_increment: q.time_increment,
       multi_select: q.multi_select, options: q.options, correct: q.correct,
+      media_url: q.media_url || "", media_type: q.media_type || "",
+      media_scale: q.media_scale ?? 100, media_first: !!q.media_first,
     })),
   };
+  const skipped = quiz._skipped_media || [];
+  if (skipped.length) {
+    alert("Exported, but " + skipped.length + " media file(s) couldn't be embedded ("
+      + skipped.map((s) => s.why).join(", ") + "). Those questions will import without media.");
+  }
   const blob = new Blob([JSON.stringify(clean, null, 2)], { type: "application/json" });
   const a = el("a", { href: URL.createObjectURL(blob), download: slug(quiz.title) + ".json" });
   document.body.append(a); a.click(); a.remove();
@@ -120,7 +128,8 @@ async function deleteQuiz(id, title) {
 let E = { id: null, title: "", questions: [] };
 
 const defaultQuestion = (type) => ({
-  type, text: "", image_url: "", media_url: "", media_type: "", media_scale: 100, points: 10,
+  type, text: "", image_url: "", media_url: "", media_type: "", media_scale: 100,
+  media_first: false, points: 10,
   timer_seconds: type === "buzzer" ? 0 : 30, time_increment: 10,
   multi_select: false, options: type === "select" ? ["", ""] : [], correct: [],
 });
@@ -138,7 +147,7 @@ function normalizeQ(q) {
   return {
     type: q.type, text: q.text || "", image_url: q.image_url || "",
     media_url: q.media_url || "", media_type: q.media_type || "",
-    media_scale: q.media_scale ?? 100,
+    media_scale: q.media_scale ?? 100, media_first: !!q.media_first,
     points: q.points ?? 10, timer_seconds: q.timer_seconds ?? 30,
     time_increment: q.time_increment ?? 10, multi_select: !!q.multi_select,
     options: q.options || [], correct: q.correct || [],
@@ -231,6 +240,15 @@ function mediaEditor(q, idx) {
       box.append(el("div", { class: "scale-row" },
         el("span", { class: "muted tiny" }, "Size"), slider, val));
     }
+    // where the media sits relative to the question text
+    const seg = el("div", { class: "seg", style: "margin-top:10px;" },
+      el("button", { class: "seg-btn" + (q.media_first ? "" : " on"), onclick: () => {
+        q.media_first = false; redraw();
+      } }, "Text first"),
+      el("button", { class: "seg-btn" + (q.media_first ? " on" : ""), onclick: () => {
+        q.media_first = true; redraw();
+      } }, "Media first"));
+    box.append(el("div", {}, el("label", { style: "margin-top:12px;" }, "Order"), seg));
     return box;
   }
 
@@ -392,8 +410,8 @@ function renderPreview() {
       el("div", { class: "row spread", style: "margin-bottom:8px;" },
         el("span", { class: "pill " + q.type }, badge),
         el("span", { class: "pill" }, (q.points || 0) + " PTS")));
-    const m = mediaEl(q, "200px"); if (m) card.append(m);
-    if (q.text) card.append(el("div", { style: "font:600 18px/1.35 'Outfit'; margin-bottom:12px;" }, q.text));
+    appendQuestionBody(card, q, "200px", q.text
+      ? el("div", { style: "font:600 18px/1.35 'Outfit'; margin-bottom:12px;" }, q.text) : null);
     if (q.type === "buzzer") {
       card.append(el("div", { class: "center" },
         el("div", { class: "buzzdisc", style: "width:150px;" },
@@ -418,8 +436,8 @@ function renderPreview() {
       el("div", { class: "row", style: "gap:10px; margin-bottom:10px;" },
         el("span", { class: "pill " + q.type }, badge),
         el("span", { class: "pill" }, (q.points || 0) + " PTS")));
-    if (q.text) stage.append(el("div", { class: "qbig", style: "font-size:clamp(22px,3vw,44px);" }, q.text));
-    const m = mediaEl(q, "300px"); if (m) stage.append(m);
+    appendQuestionBody(stage, q, "300px", q.text
+      ? el("div", { class: "qbig", style: "font-size:clamp(22px,3vw,44px);" }, q.text) : null);
     if (q.type === "select") {
       const grid = el("div", { class: "grid cols2" });
       (q.options || []).forEach((o, i2) => grid.append(el("div", { class: "opt-card", style: "font-size:18px;" },
@@ -440,8 +458,8 @@ function renderPreview() {
           el("span", { class: "pill " + q.type }, badge),
           el("span", { class: "pill" }, (q.points || 0) + " PTS")),
         el("span", { class: "muted tiny" }, q.timer_seconds ? q.timer_seconds + "s timer" : "no timer")));
-    if (q.text) card.append(el("div", { class: "qbig", style: "font-size:24px;" }, q.text));
-    const m = mediaEl(q, "180px"); if (m) card.append(m);
+    appendQuestionBody(card, q, "180px", q.text
+      ? el("div", { class: "qbig", style: "font-size:24px;" }, q.text) : null);
     if (q.type === "select") {
       const grid = el("div", { class: "grid cols2" });
       (q.options || []).forEach((o, i2) => {
@@ -585,8 +603,8 @@ function renderPresent() {
         el("span", { class: "muted tiny" }, "Q" + (H.index + 1) + " of " + H.total)));
     if (H.phase === "active" && H.q.timer_seconds > 0) { const r = makeRing(130, 42); H.pRing = r; head.append(r.node); }
     s.append(head);
-    s.append(el("div", { class: "qbig", style: "font-size:clamp(28px,4.5vw,64px);" }, H.q.text || ""));
-    { const m = mediaEl(H.q, "40vh"); if (m) s.append(m); }
+    appendQuestionBody(s, H.q, "40vh", H.q.text
+      ? el("div", { class: "qbig", style: "font-size:clamp(28px,4.5vw,64px);" }, H.q.text) : null);
     if (H.q.type === "select") {
       const grid = el("div", { class: "grid cols2" });
       H.q.options.forEach((o, i) => grid.append(el("div", { class: "opt-card", style: "font-size:20px;" },
@@ -721,8 +739,8 @@ function renderStage() {
       el("span", { class: "pill " + H.q.type }, badgeText),
       el("span", { class: "pill" }, H.q.points + " PTS")),
     (H.phase === "active" && H.q.timer_seconds > 0 && H.q.type !== "freetext") ? hostRing() : el("span", {})));
-  s.append(el("div", { class: "qbig", style: "font-size:clamp(24px,3vw,40px);" }, H.q.text || "(no text)"));
-  { const m = mediaEl(H.q, "26vh"); if (m) s.append(m); }
+  appendQuestionBody(s, H.q, "26vh",
+    el("div", { class: "qbig", style: "font-size:clamp(24px,3vw,40px);" }, H.q.text || "(no text)"));
 
   if (H.q.type === "select") {
     const grid = el("div", { class: "grid cols2" });

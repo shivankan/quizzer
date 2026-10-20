@@ -108,6 +108,7 @@ class Room:
             "media_url": q.get("media_url", ""),
             "media_type": q.get("media_type", ""),
             "media_scale": q.get("media_scale", 100),
+            "media_first": bool(q.get("media_first")),
             "points": q["points"],
             "multi_select": q.get("multi_select", False),
             "options": q.get("options", []) if q["type"] == "select" else [],

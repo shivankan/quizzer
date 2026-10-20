@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS questions (
     media_url   TEXT NOT NULL DEFAULT '',
     media_type  TEXT NOT NULL DEFAULT '',   -- image | audio | video
     media_scale INTEGER NOT NULL DEFAULT 100,
+    media_first INTEGER NOT NULL DEFAULT 0,   -- show media above the question text
     points      INTEGER NOT NULL DEFAULT 10,
     timer_seconds   INTEGER NOT NULL DEFAULT 30,
     time_increment  INTEGER NOT NULL DEFAULT 10,
@@ -87,7 +88,8 @@ def _migrate(c):
     added = []
     for name, decl in (("media_url", "TEXT NOT NULL DEFAULT ''"),
                        ("media_type", "TEXT NOT NULL DEFAULT ''"),
-                       ("media_scale", "INTEGER NOT NULL DEFAULT 100")):
+                       ("media_scale", "INTEGER NOT NULL DEFAULT 100"),
+                       ("media_first", "INTEGER NOT NULL DEFAULT 0")):
         if name not in cols:
             c.execute(f"ALTER TABLE questions ADD COLUMN {name} {decl}")
             added.append(name)
@@ -252,6 +254,7 @@ def get_quiz(host_id, quiz_id):
         d["options"] = json.loads(d.pop("options_json"))
         d["correct"] = json.loads(d.pop("correct_json"))
         d["multi_select"] = bool(d["multi_select"])
+        d["media_first"] = bool(d.get("media_first"))
         questions.append(d)
     return {"id": q["id"], "title": q["title"], "questions": questions}
 
@@ -285,14 +288,15 @@ def save_quiz(host_id, quiz_id, title, questions):
         scale = max(20, min(100, scale))
         c.execute(
             "INSERT INTO questions(quiz_id, position, type, text, image_url, media_url, "
-            "media_type, media_scale, points, timer_seconds, time_increment, multi_select, "
-            "options_json, correct_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "media_type, media_scale, media_first, points, timer_seconds, time_increment, "
+            "multi_select, options_json, correct_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 quiz_id, pos, qtype,
                 (q.get("text") or "").strip(),
                 (q.get("image_url") or "").strip(),
                 (q.get("media_url") or "").strip(),
                 mtype, scale,
+                1 if q.get("media_first") else 0,
                 int(q.get("points") or 0),
                 int(q.get("timer_seconds") or 0),
                 int(q.get("time_increment") or 0),

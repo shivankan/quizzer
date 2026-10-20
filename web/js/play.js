@@ -236,8 +236,9 @@ function renderPlayStage() {
     el("span", { class: "pill" }, P.q.points + " PTS"),
     (P.q.timer_seconds > 0 && P.q.type !== "freetext") ? timerRing() : el("span", {})));
 
-  if (P.q.text) stage.append(el("div", { style: "font:600 20px/1.35 'Outfit'; margin-bottom:14px; text-wrap:pretty;" }, P.q.text));
-  { const m = mediaEl(P.q, "34vh"); if (m) stage.append(m); }
+  appendQuestionBody(stage, P.q, "34vh", P.q.text
+    ? el("div", { style: "font:600 20px/1.35 'Outfit'; margin-bottom:14px; text-wrap:pretty;" }, P.q.text)
+    : null);
 
   if (P.phase === "review") {
     stage.append(el("div", { class: "banner violet", style: "margin-top:8px;" }, "⏳ Time's up — the host is judging answers…"));
